@@ -1,0 +1,48 @@
+{
+  "name": "sinter",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "High-performance image processing with Rust + WASM",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "rust:check": "cargo check --all",
+    "rust:build": "cd wasm && cargo build --release --target wasm32-unknown-unknown",
+    "rust:test": "cargo test --all",
+    "rust:clean": "cargo clean",
+    "rust:fmt": "cargo fmt --all",
+    "rust:lint": "cargo clippy --all",
+    "wasm:build": "bun run rust:build && wasm-pack build wasm --target web --out-dir pkg",
+    "build": "bun run wasm:build && rslib build",
+    "dev": "rslib dev",
+    "test": "vitest",
+    "lint": "eslint src --ext .ts,.tsx && bun run rust:lint",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\" && bun run rust:fmt",
+    "clean": "rm -rf dist && bun run rust:clean"
+  },
+  "dependencies": {
+    "sinter-wasm": "link:./wasm/pkg"
+  },
+  "devDependencies": {
+    "@rslib/core": "latest",
+    "@types/node": "latest",
+    "prettier": "latest",
+    "typescript": "latest",
+    "vite": "latest",
+    "vite-plugin-wasm": "latest",
+    "vite-plugin-top-level-await": "latest",
+    "vitest": "latest",
+    "wasm-pack": "latest"
+  }
+}
