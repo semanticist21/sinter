@@ -1,6 +1,6 @@
 use crate::error::SinterResult;
 use image::{DynamicImage, ImageReader};
-use rgb::Rgb;
+use rgb::{Rgb, Rgba};
 use std::io::Cursor;
 
 /// AVIF 디코딩
@@ -15,19 +15,34 @@ pub fn decode(data: &[u8]) -> SinterResult<DynamicImage> {
 
 /// AVIF 인코딩
 pub fn encode(img: &DynamicImage, quality: u8) -> SinterResult<Vec<u8>> {
-    let _avif_quality = normalize_quality(quality)?;
-    let rgb_img = img.to_rgb8();
-    let width = rgb_img.width() as usize;
-    let height = rgb_img.height() as usize;
+    let avif_quality = normalize_quality(quality)?;
+    let width = img.width() as usize;
+    let height = img.height() as usize;
 
-    // ravif를 사용한 AVIF 인코딩
-    let img_data: &[Rgb<u8>] = unsafe {
-        std::slice::from_raw_parts(rgb_img.as_raw().as_ptr() as *const Rgb<u8>, width * height)
+    let encoder = ravif::Encoder::new()
+        .with_quality(avif_quality as f32)
+        .with_speed(6);
+
+    let result = if img.color().has_alpha() {
+        let rgba_img = img.to_rgba8();
+        let img_data: &[Rgba<u8>] = unsafe {
+            std::slice::from_raw_parts(
+                rgba_img.as_raw().as_ptr() as *const Rgba<u8>,
+                width * height,
+            )
+        };
+        let img_buffer = ravif::Img::new(img_data, width, height);
+        encoder.encode_rgba(img_buffer)
+    } else {
+        let rgb_img = img.to_rgb8();
+        let img_data: &[Rgb<u8>] = unsafe {
+            std::slice::from_raw_parts(rgb_img.as_raw().as_ptr() as *const Rgb<u8>, width * height)
+        };
+        let img_buffer = ravif::Img::new(img_data, width, height);
+        encoder.encode_rgb(img_buffer)
     };
-    let img_buffer = ravif::Img::new(img_data, width, height);
 
-    let encoder = ravif::Encoder::new();
-    let output = encoder.encode_rgb(img_buffer).map_err(|e| {
+    let output = result.map_err(|e| {
         crate::error::SinterError::AvifEncodingFailed(format!("AVIF encoding failed: {}", e))
     })?;
 
