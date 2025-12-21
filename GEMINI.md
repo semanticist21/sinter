@@ -66,11 +66,16 @@ bun install
 | Command | Description |
 | :--- | :--- |
 | `bun run dev` | Start development watch mode (rebuilds TS and WASM on change). |
-| `bun run build` | Full release build: Cargo → wasm-pack → rslib. Output to `dist/`. |
-| `bun run check` | Run all checks: Biome lint, TypeScript check, and Cargo check. |
-| `bun run fix` | Auto-fix formatting and linting issues (JS/TS & Rust). |
-| `bun run test` | Run tests using `rstest`. |
-| `bun run rust:check` | Run `cargo check` only. |
+| `bun run build` | Full release build: `wasm:build` → rslib build. Output to `dist/`. |
+| `bun run check` | Run all checks: `js:check` → `wasm:check`. |
+| `bun run fix` | Auto-fix formatting and linting issues: `js:fix` → `wasm:fix`. |
+| `bun run test` | Run TypeScript tests using `rstest`. |
+| `bun run js:check` | Biome lint + TypeScript check only. |
+| `bun run js:fix` | Auto-fix and format TypeScript only. |
+| `bun run wasm:build` | Cargo release build → wasm-pack build. |
+| `bun run wasm:check` | Run `cargo check` only. |
+| `bun run wasm:fix` | Cargo fix + fmt. |
+| `bun run wasm:test` | Run Rust tests. |
 
 ## 📂 Project Structure
 
@@ -86,26 +91,46 @@ sinter/
 │   ├── src/
 │   │   ├── lib.rs              # WASM entry point
 │   │   ├── format.rs           # Format detection
-│   │   ├── formats/            # Format-specific logic (jpeg, png, avif)
-│   │   ├── resize.rs           # Resizing logic
-│   │   └── exif.rs             # EXIF handling
+│   │   ├── formats/            # Format-specific logic (jpeg, png, avif, webp)
+│   │   ├── resize.rs           # Resizing logic (Lanczos3)
+│   │   ├── exif.rs             # EXIF extraction/insertion
+│   │   ├── error.rs            # Error types
+│   │   └── constants.rs        # Constants (MAX_DIMENSION, SUPPORTED_FORMATS)
 │   └── pkg/                    # Generated WASM package (do not edit)
 ├── dist/                       # Build output (ESM/CJS/Types)
 ├── rslib.config.ts             # Rslib configuration
 ├── biome.json                  # Biome lint/format config
+├── tsconfig.json               # TypeScript configuration
+├── CLAUDE.md                   # Developer guide (detailed architecture)
 └── package.json                # Project scripts and deps
 ```
 
 ## 📝 Development Conventions
 
-* **Commits**: Follow **Conventional Commits** (e.g., `feat: add avif support`, `fix: resize logic`).
-* **Formatting**: Strictly enforced via **Biome**. Run `bun run fix` before committing.
+* **Commits**: Follow **Conventional Commits** (e.g., `feat: add avif support`, `fix(formats/png): improve compression`).
+  * Scope examples: `formats/jpeg`, `compression`, `resize`, `exif`
+* **Formatting**: Strictly enforced via **Biome** (2-space indent, 100-char line width).
+  * Run `bun run fix` before committing.
+* **Separation of Concerns**:
+  * JS/TS checks: `bun run js:check` / `bun run js:fix`
+  * Rust checks: `bun run wasm:check` / `bun run wasm:fix`
+  * Combined: `bun run check` / `bun run fix`
 * **Testing**:
-  * Place tests in `src/__tests__/` (integration) or `src/internal/__tests__/` (unit).
-  * Files should end in `.test.ts`.
+  * TypeScript tests: Place in `src/__tests__/` or `src/internal/__tests__/`, name with `.test.ts` suffix.
+  * Rust tests: Run with `bun run wasm:test` (uses `cargo test`).
 * **WASM Changes**:
-  * If you modify Rust code (`wasm/src/`), `bun run dev` will auto-rebuild it.
-  * If you change the public Rust API, you must update the TypeScript wrapper (`src/compress.worker.ts` / `src/index.ts`) to match.
+  * If you modify Rust code (`wasm/src/`), `bun run dev` will auto-rebuild.
+  * If you change the public Rust API, update the TypeScript wrapper (`src/compress.worker.ts` / `src/index.ts`).
 * **Publishing**:
-  * `dist/` directory **must** be committed to git, as it contains the artifacts published to npm.
+  * `dist/` directory **must** be committed to git (contains artifacts published to npm).
   * Run `bun run build` before versioning/publishing.
+  * Use `npm version patch|minor|major` to update version atomically.
+
+## 🔗 Related Documentation
+
+* **`CLAUDE.md`**: Detailed architecture guide for developers (extends this overview with implementation details).
+* **Public API**: See `src/index.ts` for `CompressImage()` function signature and types.
+
+## 📄 License
+
+Sinter is designed for high-performance, privacy-respecting image compression in the browser.

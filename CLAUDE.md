@@ -78,21 +78,27 @@ bun install
 ```bash
 bun run dev      # Watch mode: Rslib rebuilds TypeScript on save
                  # Also watches WASM changes (via linked wasm/pkg)
-bun run build    # Full release build: Cargo release → wasm-pack → rslib
+bun run build    # Full release build: wasm:build → rslib build
                  # Output: dist/index.js (ESM), dist/index.cjs (CJS), dist/index.d.ts (types)
 ```
 
 **Quality Checks** (required before commit)
 ```bash
-bun run fix      # Auto-format (Biome) + lint + Rust fmt
-bun run check    # Verify: Biome check → TypeScript → Cargo check (blocking if errors)
+bun run fix      # Auto-format + lint everything: js:fix → wasm:fix
+bun run check    # Verify everything: js:check → wasm:check (blocking if errors)
+```
+
+**TypeScript/JavaScript Quality** (main project)
+```bash
+bun run js:check   # Biome check + TypeScript type check (included in bun run check)
+bun run js:fix     # Biome auto-format + TypeScript type check (included in bun run fix)
 ```
 
 **Testing** (powered by Vitest + @rstest/core)
 ```bash
-bun run test                              # Run all tests (discovers .test.ts files)
+bun run test                              # Run all TypeScript tests (discovers .test.ts files)
 bun run test -- --ui                      # Interactive UI mode (helpful for debugging)
-bun run test -- src/internal/__tests__    # Run specific directory
+bun run test -- src/__tests__             # Run specific directory
 bun run test -- --coverage                # Generate coverage report
 ```
 
@@ -101,11 +107,12 @@ Test file discovery: automatically finds test files in:
 - `src/internal/__tests__/` (unit tests)
 - Any `*.test.ts` files in src/
 
-**Rust-specific**
+**WASM/Rust Quality** (separate from JS)
 ```bash
-bun run rust:check              # cargo check --all (included in bun run check)
-bun run rust:fix                # cargo fix --allow-dirty && cargo fmt --all
-cd wasm && cargo build --release  # Standalone Rust build if needed
+bun run wasm:build              # Cargo release build → wasm-pack build
+bun run wasm:check              # cargo check --all (included in bun run check)
+bun run wasm:fix                # cargo fix --allow-dirty && cargo fmt --all (included in bun run fix)
+bun run wasm:test               # cargo test --all
 ```
 
 ### Build Pipeline
@@ -118,16 +125,16 @@ cd wasm && cargo build --release  # Standalone Rust build if needed
 
 **`bun run build` flow:**
 ```
-1. cd wasm && cargo build --release --target wasm32-unknown-unknown
-   → Creates optimized WASM binary (target/wasm32-unknown-unknown/release/sinter_wasm.wasm)
+1. bun run wasm:build
+   → cd wasm && cargo build --release --target wasm32-unknown-unknown
+      Creates optimized WASM binary (target/wasm32-unknown-unknown/release/sinter_wasm.wasm)
+   → wasm-pack build wasm --target web --out-dir pkg
+      Generates WASM bindings in wasm/pkg/:
+      - sinter_wasm.wasm (WASM binary)
+      - sinter_wasm.js (JS wrapper)
+      - sinter_wasm.d.ts (TS types)
 
-2. wasm-pack build wasm --target web --out-dir pkg
-   → Generates WASM bindings in wasm/pkg/
-     - sinter_wasm.wasm (WASM binary)
-     - sinter_wasm.js (JS wrapper)
-     - sinter_wasm.d.ts (TS types)
-
-3. rslib build
+2. rslib build
    → Builds TypeScript + imports linked WASM
    → Outputs to dist/:
      - index.js (ESM, minified)
@@ -415,7 +422,7 @@ bun run dev              # Starts watch mode
 ```bash
 # Just save - dev watcher rebuilds automatically
 # Before committing, run:
-bun run check            # Verify everything type-checks and compiles
+bun run wasm:check       # Verify Rust compiles (or use bun run check for everything)
 ```
 
 **I added a test file**

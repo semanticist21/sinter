@@ -17,13 +17,17 @@
     "dist"
   ],
   "scripts": {
-    "build": "cd wasm && cargo build --release --target wasm32-unknown-unknown && cd .. && wasm-pack build wasm --target web --out-dir pkg && rslib build",
     "dev": "rslib dev",
-    "check": "biome check . && tsgo && bun run rust:check",
+    "build": "bun run wasm:build && rslib build",
+    "check": "bun run js:check && bun run wasm:check",
+    "fix": "bun run js:fix && bun run wasm:fix",
     "test": "rstest",
-    "fix": "biome check . --write && tsgo && bun run rust:fix",
-    "rust:check": "cargo check --all",
-    "rust:fix": "cargo fix --allow-dirty && cargo fmt --all"
+    "js:check": "biome check . && tsgo",
+    "js:fix": "biome check . --write && tsgo",
+    "wasm:build": "cd wasm && cargo build --release --target wasm32-unknown-unknown && cd .. && wasm-pack build wasm --target web --out-dir pkg",
+    "wasm:check": "cargo check --all",
+    "wasm:fix": "cargo fix --allow-dirty && cargo fmt --all",
+    "wasm:test": "cargo test --all"
   },
   "dependencies": {
     "sinter-wasm": "link:sinter-wasm"
