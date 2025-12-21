@@ -54,12 +54,18 @@ impl ImageFormat {
             return Some(Self::Webp);
         }
 
-        // AVIF: ftyp ... av01 (bytes 4-8 검사, 12-15도 가능)
+        // AVIF: ftyp (bytes 4-7) + major brand (bytes 8-11)
+        // Supported brands: "avif" (61 76 69 66), "avis" (61 76 69 73), "avio" (61 76 69 6F)
         if bytes.len() >= 12
-            && bytes[4] == 0x66
-            && bytes[5] == 0x74
-            && bytes[6] == 0x79
-            && bytes[7] == 0x70
+            && bytes[4] == 0x66  // 'f'
+            && bytes[5] == 0x74  // 't'
+            && bytes[6] == 0x79  // 'y'
+            && bytes[7] == 0x70  // 'p'
+            && bytes[8] == 0x61  // 'a'
+            && bytes[9] == 0x76  // 'v'
+            && bytes[10] == 0x69 // 'i'
+            && (bytes[11] == 0x66 || bytes[11] == 0x73 || bytes[11] == 0x6F)
+        // 'f' | 's' | 'o'
         {
             return Some(Self::Avif);
         }
