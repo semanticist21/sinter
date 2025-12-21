@@ -1,11 +1,13 @@
 mod constants;
 mod error;
 mod exif;
+mod format;
 mod formats;
 mod resize;
 
 use error::SinterResult;
 use exif::ExifHandler;
+use format::ImageFormat;
 use resize::ImageResizer;
 use wasm_bindgen::prelude::*;
 
@@ -17,6 +19,8 @@ pub struct CompressResult {
     width: u32,
     height: u32,
     format: String,
+    mime_type: String,
+    extension: String,
 }
 
 #[wasm_bindgen]
@@ -39,6 +43,16 @@ impl CompressResult {
     #[wasm_bindgen(getter)]
     pub fn format(&self) -> String {
         self.format.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn mime_type(&self) -> String {
+        self.mime_type.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn extension(&self) -> String {
+        self.extension.clone()
     }
 }
 
@@ -94,38 +108,47 @@ fn compress_image_internal(
     max_size_kb: Option<u32>,
     preserve_exif: bool,
 ) -> SinterResult<CompressResult> {
-    // 1. EXIF 추출 (보존이 필요하면)
+    // 1. 포맷 자동 감지 (MIME 타입 우선, 실패 시 magic bytes 사용)
+    let format = ImageFormat::detect(mime_type, data)?;
+    let target_format_enum = if target_format.is_empty() {
+        format
+    } else {
+        // target_format이 지정된 경우 사용 ("jpeg", "png" 등)
+        target_format.parse::<ImageFormat>().unwrap_or(format)
+    };
+
+    // 2. EXIF 추출 (보존이 필요하면)
     let exif_data = if preserve_exif {
         ExifHandler::extract(data, mime_type)?
     } else {
         None
     };
 
-    // 2. 이미지 디코딩
+    // 3. 이미지 디코딩
     let mut img = formats::decode(data, mime_type)?;
 
-    // 3. 리사이징 (maxWidth/maxHeight)
+    // 4. 리사이징 (maxWidth/maxHeight)
     if max_width.is_some() || max_height.is_some() {
         img = ImageResizer::resize(&img, max_width, max_height)?;
     }
 
-    // 4. 인코딩 (초기 품질 85)
-    let mut encoded = formats::encode(&img, target_format, 85)?;
+    // 5. 인코딩 (초기 품질 85)
+    let mut encoded = formats::encode(&img, target_format_enum.as_str(), 85)?;
 
-    // 5. maxSize 제약 적용 (반복 품질 감소)
+    // 6. maxSize 제약 적용 (반복 품질 감소)
     if let Some(max_kb) = max_size_kb {
         let max_bytes = (max_kb as usize) * 1024;
         let mut quality = 85u8;
 
         while encoded.len() > max_bytes && quality > 20 {
             quality = quality.saturating_sub(5);
-            encoded = formats::encode(&img, target_format, quality)?;
+            encoded = formats::encode(&img, target_format_enum.as_str(), quality)?;
         }
     }
 
-    // 6. EXIF 삽입 (필요하면)
+    // 7. EXIF 삽입 (필요하면)
     if let Some(exif) = exif_data {
-        encoded = ExifHandler::insert(&encoded, &exif, &format!("image/{}", target_format))?;
+        encoded = ExifHandler::insert(&encoded, &exif, target_format_enum.mime_type())?;
     }
 
     // 결과 반환
@@ -133,7 +156,9 @@ fn compress_image_internal(
         data: encoded,
         width: img.width(),
         height: img.height(),
-        format: target_format.to_string(),
+        format: target_format_enum.as_str().to_string(),
+        mime_type: target_format_enum.mime_type().to_string(),
+        extension: target_format_enum.extension().to_string(),
     })
 }
 

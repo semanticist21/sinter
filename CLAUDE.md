@@ -18,7 +18,8 @@ sinter/
 ├── wasm/                       # Rust WASM implementation
 │   ├── Cargo.toml
 │   ├── src/
-│   │   ├── lib.rs                  # compress_image() entry point + result struct
+│   │   ├── lib.rs                  # compress_image() entry point; returns CompressResult
+│   │   ├── format.rs               # ImageFormat enum: MIME detection + magic bytes + metadata
 │   │   ├── formats/                # Format-specific encode/decode
 │   │   │   ├── mod.rs              # Format dispatcher (decode/encode APIs)
 │   │   │   ├── jpeg.rs             # JPEG decode + encode + quality normalization
@@ -34,13 +35,8 @@ sinter/
 ├── src/                        # TypeScript wrapper + public API
 │   ├── index.ts                        # Public CompressImage() API + Worker management
 │   ├── compress.worker.ts              # Worker script (WASM execution)
-│   ├── internal/
-│   │   ├── compress.ts                 # Core compression logic (testable, WASM wrapper)
-│   │   └── __tests__/
-│   │       ├── avif.test.ts            # AVIF format tests
-│   │       └── ... (other format tests)
-│   ├── utils.ts                        # MIME type helpers, file naming, byte conversion
-│   ├── __tests__/                      # Integration tests
+│   ├── utils.ts                        # convertToBytes() only (byte unit conversion)
+│   ├── __tests__/                      # Integration tests for public API
 │   └── (tsconfig.json, biome.json included in project root)
 │
 ├── rslib.config.ts             # Library build config (ESM + CJS)
@@ -80,33 +76,45 @@ bun install
 
 **Development**
 ```bash
-bun run dev      # Watch mode with auto-rebuild (Rslib + hot reload)
+bun run dev      # Watch mode: Rslib rebuilds TypeScript on save
+                 # Also watches WASM changes (via linked wasm/pkg)
 bun run build    # Full release build: Cargo release → wasm-pack → rslib
                  # Output: dist/index.js (ESM), dist/index.cjs (CJS), dist/index.d.ts (types)
 ```
 
 **Quality Checks** (required before commit)
 ```bash
-bun run fix      # Auto-format (Biome) + lint + Rust fmt (sequential)
+bun run fix      # Auto-format (Biome) + lint + Rust fmt
 bun run check    # Verify: Biome check → TypeScript → Cargo check (blocking if errors)
 ```
 
-**Testing**
+**Testing** (powered by Vitest + @rstest/core)
 ```bash
-bun run test                  # Run all tests with Vitest
-bun run test -- --ui          # Interactive UI mode
-bun run test -- src/index.test.ts  # Run specific test file
-bun run test -- --coverage    # Generate coverage report
+bun run test                              # Run all tests (discovers .test.ts files)
+bun run test -- --ui                      # Interactive UI mode (helpful for debugging)
+bun run test -- src/internal/__tests__    # Run specific directory
+bun run test -- --coverage                # Generate coverage report
 ```
+
+Test file discovery: automatically finds test files in:
+- `src/__tests__/` (integration tests)
+- `src/internal/__tests__/` (unit tests)
+- Any `*.test.ts` files in src/
 
 **Rust-specific**
 ```bash
-bun run rust:check   # cargo check --all (included in bun run check)
-bun run rust:fix     # cargo fix --allow-dirty && cargo fmt --all
-cd wasm && cargo build --release  # Standalone Rust build
+bun run rust:check              # cargo check --all (included in bun run check)
+bun run rust:fix                # cargo fix --allow-dirty && cargo fmt --all
+cd wasm && cargo build --release  # Standalone Rust build if needed
 ```
 
 ### Build Pipeline
+
+**`bun run dev` behavior:**
+- Rslib watches TypeScript files in `src/` for changes
+- Auto-rebuilds and hot-reloads on save
+- Also watches linked WASM package (`wasm/pkg`) for changes
+- No need to restart dev server when editing Rust code
 
 **`bun run build` flow:**
 ```
@@ -131,6 +139,7 @@ cd wasm && cargo build --release  # Standalone Rust build
 - Publishable to npm (files: ["dist"] in package.json)
 - Includes WASM binary inlined in JS bundles (via wasm-pack)
 - Tree-shakeable ESM exports
+- Must be committed to git (required for npm publish)
 
 ### Common Workflows
 
@@ -140,15 +149,16 @@ cd wasm && cargo build --release  # Standalone Rust build
 - Run `bun run check` before commit
 
 **Changing public API**
-- Update `src/index.ts` (CompressImage function)
-- Update `src/types.ts` (CompressImageOptions type)
-- Update `wasm/src/lib.rs` (compress_image function signature)
+- Update `src/index.ts` (CompressImage function signature & Worker message handling)
+- Update `wasm/src/lib.rs` (compress_image function signature & CompressResult fields)
+- Update `src/compress.worker.ts` (message structure if needed)
 - Run `bun run build` to regenerate bindings
 
 **Adding format support**
 - Create new file `wasm/src/formats/[format].rs` with `decode()` and `encode()` functions
 - Add format-specific quality normalization in `encode()` function
 - Update `wasm/src/formats/mod.rs` to dispatch new format
+- Update `wasm/src/format.rs` ImageFormat enum with new format variant (add to from_mime_type, detect_from_bytes, mime_type, extension, as_str methods)
 - Update `wasm/src/constants.rs` SUPPORTED_FORMATS
 - Run `bun run check`
 
@@ -279,7 +289,8 @@ When `CompressImage(file, options)` is called:
 
 | Module | Responsibility |
 |--------|-----------------|
-| `lib.rs` | WASM entry point; orchestrates compress_image_internal pipeline |
+| `lib.rs` | WASM entry point; orchestrates compress_image_internal pipeline; returns CompressResult with metadata |
+| `format.rs` | ImageFormat enum: MIME type detection, magic bytes detection, format metadata (MIME type, extension) |
 | `resize.rs` | Lanczos3 aspect-ratio-preserving resize |
 | `exif.rs` | Extract/inject EXIF segments |
 | `error.rs` | Error types |
@@ -289,7 +300,7 @@ When `CompressImage(file, options)` is called:
 
 | Module | Responsibility |
 |--------|-----------------|
-| `mod.rs` | Format dispatcher; `decode(data, format)` and `encode(img, format, quality)` public APIs |
+| `mod.rs` | Format dispatcher; `decode(data, mime_type)` and `encode(img, format_str, quality)` public APIs |
 | `jpeg.rs` | JPEG: decode + encode + quality normalization (0-100) |
 | `png.rs` | PNG: decode + encode + quality normalization (0-100 → 0-9 compression) |
 | `webp.rs` | WebP: decode + encode (fallback to PNG due to libwebp-sys limitation) |
@@ -301,22 +312,20 @@ When `CompressImage(file, options)` is called:
 
 | Module | Responsibility |
 |--------|-----------------|
-| `index.ts` | Public CompressImage() function; Worker management (singleton pattern) |
-| `compress.worker.ts` | Worker script; receives postMessage, calls WASM, returns compressed data |
-| `internal/compress.ts` | Pure compression logic (testable, separates WASM call from Worker/File I/O) |
+| `index.ts` | Public CompressImage() function; Worker management (singleton pattern); File I/O + metadata from Rust |
+| `compress.worker.ts` | Worker script; receives postMessage, calls Rust WASM, returns CompressResult with metadata |
 
 **Type Definitions & Utilities**
 
 | Module | Responsibility |
 |--------|-----------------|
-| `utils.ts` | MIME type helpers, file naming, byte conversion (KB/MB/GB) |
+| `utils.ts` | convertToBytes() - byte unit conversion only (KB/MB/GB) |
 
 **Tests**
 
 | Location | Purpose |
 |----------|---------|
-| `src/__tests__/` | Integration tests for public API |
-| `src/internal/__tests__/` | Unit tests for format-specific handlers |
+| `src/__tests__/` | Integration tests for public CompressImage() API |
 
 ### Implementation Notes
 
@@ -327,10 +336,15 @@ When `CompressImage(file, options)` is called:
   - Used to prevent blocking main thread UI during WASM execution
 
 - **Data Flow Separation**:
-  - `src/index.ts` (CompressImage) handles: File reading, Worker lifecycle
-  - `src/internal/compress.ts` (compressImageData) handles: Pure WASM call logic (testable, no side effects)
-  - `src/compress.worker.ts` handles: Running compressImageData in worker context
-  - This separation allows unit testing of compression logic without Worker/File I/O overhead
+  - `src/index.ts` (CompressImage) handles: File reading, Worker lifecycle, File object creation from Rust metadata
+  - `src/compress.worker.ts` handles: Calling Rust compress_image(), passing CompressResult back
+  - TypeScript receives MIME type and extension from Rust (Single Source of Truth)
+
+- **Format Detection** (in `wasm/src/format.rs`):
+  - MIME type detection via `ImageFormat::from_mime_type()` handles `image/jpeg`, `image/jpg`, `image/png`, etc.
+  - Magic bytes fallback via `ImageFormat::detect_from_bytes()` for JPEG (FF D8 FF), PNG (89 50 4E 47), WebP (RIFF...WEBP), AVIF (ftyp)
+  - `ImageFormat::detect()` tries MIME first, then magic bytes if MIME fails
+  - Rust returns both format enum and metadata (MIME type, extension) to TypeScript
 
 - **Quality Normalization**: Happens in each format module's encode function:
   - JPEG: 0-100 (direct pass-through)
@@ -352,8 +366,6 @@ When `CompressImage(file, options)` is called:
   - Cargo release builds: aggressive opts (opt-level="z", LTO)
   - wasm-pack: web target with minification
   - rslib: ESM + CJS bundles, tree-shakeable exports
-
-- **Format Dispatch**: `wasm/src/formats/mod.rs` routes decode/encode based on format string
 
 - **Memory Limits**:
   - MAX_DIMENSION = 4096px (browser memory constraint)
@@ -380,6 +392,55 @@ When `CompressImage(file, options)` is called:
 - `typescript` + `tsgo`: Type checking
 - `wasm-pack`: WASM compilation
 - `vitest`: Tests
+
+## Quick Reference
+
+### Common Development Tasks
+
+**I just cloned the repo**
+```bash
+cd wasm/pkg && bun link && cd ../.. && bun link sinter-wasm
+bun install
+bun run build
+```
+
+**I want to start developing**
+```bash
+bun run dev              # Starts watch mode
+# Edit files in src/ or wasm/src/
+# Changes auto-rebuild
+```
+
+**I modified Rust code**
+```bash
+# Just save - dev watcher rebuilds automatically
+# Before committing, run:
+bun run check            # Verify everything type-checks and compiles
+```
+
+**I added a test file**
+```bash
+# Place it in src/__tests__/ or src/internal/__tests__/
+# Name it with .test.ts suffix (e.g., format.test.ts)
+bun run test -- --ui     # Run with interactive UI
+```
+
+**Before I commit**
+```bash
+bun run fix              # Auto-format everything
+bun run check            # Verify no errors
+bun run test             # Ensure all tests pass
+git add dist/            # Include build artifacts
+git commit -m "..."      # Conventional commit format
+```
+
+**I want to publish to npm**
+```bash
+bun run build                    # Generate dist/
+npm version patch                # Bumps version (patch/minor/major)
+npm publish                      # Publishes to npm
+git push                         # Push version tag
+```
 
 ## Troubleshooting
 
@@ -424,8 +485,26 @@ cd wasm/pkg && bun link && cd ../.. && bun link sinter-wasm && bun install
 ### Git & Build Artifacts
 - **Cargo.lock**: Ignored (library convention)
 - **.gitignore**: Excludes `wasm/pkg/` and `target/` (auto-regenerated by build)
-- **dist/**: Generated by build, safe to .gitignore (but publish includes it)
+- **dist/**: Generated by build, included in commits (required for npm publish)
 - **wasm-pack output**: Auto-linked via `package.json`; never manually edit `wasm/pkg/`
+
+### Git Workflow & Commits
+- **Always use feature branches**: `git checkout -b feat/description` for new features
+- **Conventional commits required**: Follow format `type(scope): description`
+  - Types: `feat` (feature), `fix` (bug fix), `chore` (build/tooling), `docs` (documentation), `refactor` (code improvement), `test` (tests)
+  - Examples:
+    - `feat(compression): add quality fallback loop for maxSize constraint`
+    - `fix(formats/png): correct compression level mapping`
+    - `chore: update dependencies`
+- **Commit frequently**: Logical, atomic commits are better than giant ones
+- **Before pushing**:
+  ```bash
+  bun run fix         # Format + lint
+  bun run check       # Type check + Cargo check
+  bun run test        # Ensure tests pass
+  git add dist/       # Include build artifacts
+  ```
+- **dist/ must be committed** for npm publishing to work
 
 ### Development & Deployment
 - **dev vs release**: Release builds optimized aggressively for size (`opt-level="z"`, LTO)
@@ -483,12 +562,7 @@ To adjust:
 
 ### Testing Compression Logic
 
-Use `src/internal/__tests__/` for isolated format testing:
-- Tests call `compressImageData()` directly (from compress.ts)
-- No Worker/File I/O overhead
-- Can test format-specific quality behavior easily
-- Example: `src/internal/__tests__/avif.test.ts`
-
-For integration testing, use `src/__tests__/`:
+Use `src/__tests__/` for integration testing:
 - Tests call public `CompressImage()` API
-- Validates full workflow including File I/O
+- Validates full workflow including File I/O, Worker communication, and metadata handling
+- Verifies MIME type and extension from Rust are correct

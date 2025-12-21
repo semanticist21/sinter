@@ -1,4 +1,4 @@
-import { convertToBytes, generateFileName, getFormatFromMimeType, getMimeType } from "./utils";
+import { convertToBytes } from "./utils";
 
 /** 최대 파일 크기 설정 */
 export type MaxSize = {
@@ -47,16 +47,20 @@ export async function CompressImage(file: File, options: CompressImageOptions = 
   const arrayBuffer = await file.arrayBuffer();
   const fileData = new Uint8Array(arrayBuffer);
 
-  // 2. 타겟 포맷 결정 (기본값: 원본 포맷 또는 jpeg)
-  const targetFormat = options.format || getFormatFromMimeType(file.type) || "jpeg";
-
-  // 3. maxSize를 KB로 변환 (0 = 무제한)
+  // 2. maxSize를 KB로 변환 (0 = 무제한)
   const maxSizeKb = options.maxSize
     ? Math.ceil(convertToBytes(options.maxSize.value, options.maxSize.unit) / 1024)
     : 0;
 
-  // 4. 워커에서 WASM 함수 호출 (메인 스레드 비블로킹)
-  const result = await new Promise<{ format: string; data: Uint8Array }>((resolve, reject) => {
+  // 3. 워커에서 WASM 함수 호출 (메인 스레드 비블로킹)
+  interface CompressionResult {
+    format: string;
+    mime_type: string;
+    extension: string;
+    data: Uint8Array;
+  }
+
+  const result = await new Promise<CompressionResult>((resolve, reject) => {
     const worker = getCompressWorker();
     const messageId = `compress_${Date.now()}_${Math.random()}`;
 
@@ -64,7 +68,12 @@ export async function CompressImage(file: File, options: CompressImageOptions = 
       if (event.data.id === messageId) {
         worker.removeEventListener("message", handleMessage);
         if (event.data.success) {
-          resolve({ format: event.data.format, data: event.data.data });
+          resolve({
+            format: event.data.format,
+            mime_type: event.data.mime_type,
+            extension: event.data.extension,
+            data: event.data.data,
+          });
         } else {
           reject(new Error(event.data.error || "Worker processing failed"));
         }
@@ -84,7 +93,7 @@ export async function CompressImage(file: File, options: CompressImageOptions = 
       id: messageId,
       fileData,
       inputMimeType: file.type,
-      targetFormat,
+      targetFormat: options.format || "",
       maxWidth: options.maxWidth || 0,
       maxHeight: options.maxHeight || 0,
       maxSizeKb,
@@ -92,13 +101,11 @@ export async function CompressImage(file: File, options: CompressImageOptions = 
     });
   });
 
-  // 5. 결과를 File 객체로 변환
-  const mimeType = getMimeType(result.format);
-  const newFileName = generateFileName(file.name, result.format);
-  // Uint8Array를 일반 ArrayBuffer로 변환하여 타입 호환성 확보
+  // 4. 결과를 File 객체로 변환 (Rust에서 받은 메타데이터 사용)
+  const newFileName = `${file.name.replace(/\.[^.]+$/, "")}-compressed.${result.extension}`;
   const dataCopy = result.data.slice(0);
-  const blob = new Blob([dataCopy], { type: mimeType });
-  const compressedFile = new File([blob], newFileName, { type: mimeType });
+  const blob = new Blob([dataCopy], { type: result.mime_type });
+  const compressedFile = new File([blob], newFileName, { type: result.mime_type });
 
   return compressedFile;
 }
