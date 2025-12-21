@@ -1,16 +1,12 @@
 use crate::error::SinterResult;
-use image::{DynamicImage, ImageReader};
+use image::DynamicImage;
 use rgb::{Rgb, Rgba};
-use std::io::Cursor;
 
 /// AVIF 디코딩
 pub fn decode(data: &[u8]) -> SinterResult<DynamicImage> {
-    let cursor = Cursor::new(data);
-    ImageReader::new(cursor)
-        .with_guessed_format()
-        .map_err(|e| crate::error::SinterError::DecodeFailed(e.to_string()))?
-        .decode()
-        .map_err(|e| crate::error::SinterError::DecodeFailed(e.to_string()))
+    // Use libavif-image for AVIF decoding
+    libavif_image::read(data)
+        .map_err(|e| crate::error::SinterError::DecodeFailed(format!("AVIF decode error: {:?}", e)))
 }
 
 /// AVIF 인코딩

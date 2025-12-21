@@ -16,10 +16,11 @@ js-sys = "0.3"
 # Note: webp feature excluded due to native libwebp-sys incompatibility with WASM
 image = { version = "0.25", features = ["jpeg", "png"] }
 
-# AVIF support (optional, can be removed for smaller WASM)
-ravif = "0.12"
+# AVIF support
+ravif = "0.12"  # Encoding
 y4m = "0.8"
 rgb = "0.8"
+libavif-image = "0.14"  # Decoding (requires dav1d)
 
 # EXIF handling
 img-parts = "0.3"
