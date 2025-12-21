@@ -17,32 +17,26 @@
     "dist"
   ],
   "scripts": {
-    "rust:check": "cargo check --all",
-    "rust:build": "cd wasm && cargo build --release --target wasm32-unknown-unknown",
-    "rust:test": "cargo test --all",
-    "rust:clean": "cargo clean",
-    "rust:fmt": "cargo fmt --all",
-    "rust:lint": "cargo clippy --all",
-    "wasm:build": "bun run rust:build && wasm-pack build wasm --target web --out-dir pkg",
-    "build": "bun run wasm:build && rslib build",
+    "build": "cd wasm && cargo build --release --target wasm32-unknown-unknown && cd .. && wasm-pack build wasm --target web --out-dir pkg && rslib build",
     "dev": "rslib dev",
-    "test": "vitest",
-    "lint": "eslint src --ext .ts,.tsx && bun run rust:lint",
-    "format": "prettier --write \"src/**/*.{ts,tsx}\" && bun run rust:fmt",
-    "clean": "rm -rf dist && bun run rust:clean"
+    "check": "biome check . && tsgo && bun run rust:check",
+    "test": "rstest",
+    "fix": "biome check . --write && tsgo && bun run rust:fix",
+    "rust:check": "cargo check --all",
+    "rust:fix": "cargo fix --allow-dirty && cargo fmt --all"
   },
   "dependencies": {
-    "sinter-wasm": "link:./wasm/pkg"
+    "sinter-wasm": "link:sinter-wasm"
   },
   "devDependencies": {
-    "@rslib/core": "latest",
-    "@types/node": "latest",
-    "prettier": "latest",
-    "typescript": "latest",
-    "vite": "latest",
-    "vite-plugin-wasm": "latest",
-    "vite-plugin-top-level-await": "latest",
-    "vitest": "latest",
-    "wasm-pack": "latest"
+    "@biomejs/biome": "^2.3.10",
+    "@rslib/core": "^0.18.5",
+    "@rstest/core": "^0.7.5",
+    "@types/node": "^25.0.3",
+    "@typescript/native-preview": "^7.0.0-dev.20251219.1",
+    "vite": "^7.3.0",
+    "vite-plugin-top-level-await": "^1.6.0",
+    "vite-plugin-wasm": "^3.5.0",
+    "wasm-pack": "^0.13.1"
   }
 }

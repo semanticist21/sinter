@@ -11,12 +11,21 @@ crate-type = ["cdylib", "rlib"]
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
-web-sys = { version = "0.3", features = [
-    "console",
-    "CanvasRenderingContext2d",
-    "HtmlCanvasElement",
-    "ImageData",
-] }
+
+# Image processing - decode/encode + resize (built-in)
+# Note: webp feature excluded due to native libwebp-sys incompatibility with WASM
+image = { version = "0.25", features = ["jpeg", "png"] }
+
+# AVIF support (optional, can be removed for smaller WASM)
+ravif = "0.12"
+y4m = "0.8"
+rgb = "0.8"
+
+# EXIF handling
+img-parts = "0.3"
+
+# Error handling
+thiserror = "1.0"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"

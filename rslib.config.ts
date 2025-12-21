@@ -1,25 +1,25 @@
-import { defineConfig } from '@rslib/core';
+import { defineConfig } from "@rslib/core";
 
 export default defineConfig({
   lib: [
     {
-      format: 'esm',
-      syntax: 'esnext',
+      format: "esm",
+      syntax: "esnext",
       output: {
-        distPath: './dist',
+        distPath: "./dist",
       },
     },
     {
-      format: 'cjs',
-      syntax: 'esnext',
+      format: "cjs",
+      syntax: "esnext",
       output: {
-        distPath: './dist',
+        distPath: "./dist",
       },
     },
   ],
   source: {
     entry: {
-      index: './src/index.ts',
+      index: "./src/index.ts",
     },
   },
 });
