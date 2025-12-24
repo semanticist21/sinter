@@ -16,8 +16,8 @@ type Constraints = {
 
 /** 이미지 압축 옵션 (종횡비는 항상 유지됨) */
 export type CompressImageOptions = {
-  /** 변환 포맷: JPEG, PNG, WebP, AVIF */
-  format?: "jpeg" | "png" | "webp" | "avif";
+  /** 변환 포맷: JPEG, PNG, WebP, AVIF, HEIC */
+  format?: "jpeg" | "png" | "webp" | "avif" | "heic";
   /** 크기 제약 조건 */
   constraints?: Constraints;
   /** EXIF 정보 보존 여부 */
