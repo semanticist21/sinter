@@ -9,3 +9,8 @@ export function convertToBytes(value: number, unit: "KB" | "MB" | "GB"): number 
       return value * 1024 * 1024 * 1024;
   }
 }
+
+/** UUID 생성 */
+export function uuid(): string {
+  return crypto.randomUUID();
+}
