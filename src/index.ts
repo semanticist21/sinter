@@ -16,8 +16,8 @@ type Constraints = {
 
 /** 이미지 압축 옵션 (종횡비는 항상 유지됨) */
 export type CompressImageOptions = {
-  /** 변환 포맷: JPEG, PNG, WebP, AVIF, HEIC */
-  format?: "jpeg" | "png" | "webp" | "avif" | "heic";
+  /** 변환 포맷 (기본값: keep = 원본 유지) */
+  format?: "keep" | "jpeg" | "png" | "webp" | "avif" | "heic";
   /** 크기 제약 조건 */
   constraints?: Constraints;
   /** EXIF 정보 보존 여부 */
@@ -50,7 +50,7 @@ export async function CompressImage(file: File, options: CompressImageOptions = 
   const result = await compressWorker.post({
     fileData,
     mimeType: file.type,
-    format: options.format,
+    format: options.format ?? "keep",
     maxWidth: constraints?.maxWidth,
     maxHeight: constraints?.maxHeight,
     maxSizeKb,
