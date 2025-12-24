@@ -21,7 +21,6 @@ wasm/pkg/
 wasm/output/
 
 # IDEs
-.vscode/
 .idea/
 *.swp
 *.swo
