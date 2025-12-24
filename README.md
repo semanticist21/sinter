@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/semanticist21/sinter/main/assets/logo.webp" alt="Sinter Logo" width="200" />
+  <img src="https://raw.githubusercontent.com/semanticist21/sinter/main/assets/logo-white.webp" alt="Sinter Logo" />
 </p>
 
 <h1 align="center">Sinter</h1>
