@@ -1,0 +1,3 @@
+[submodule "src/engines/third_party/libavif"]
+	path = src/engines/third_party/libavif
+	url = https://github.com/AOMediaCodec/libavif.git

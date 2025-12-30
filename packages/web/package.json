@@ -1,0 +1,20 @@
+{
+  "name": "@sinter/web",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "High-performance image processing library",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "module": "./dist/index.js",
+  "files": ["dist"],
+  "scripts": {
+    "dev": "rslib dev",
+    "build": "rslib build",
+    "check": "tsgo"
+  },
+  "devDependencies": {
+    "@rslib/core": "^0.18.5",
+    "@typescript/native-preview": "^7.0.0-dev.20251219.1"
+  }
+}
