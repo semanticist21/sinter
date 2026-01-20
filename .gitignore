@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+pnpm-lock.yaml
+yarn.lock
+bun.lockb
+
+# Build outputs
+dist/
+build/
+
+# Rust/Cargo
+target/
+Cargo.lock
+*.rlib
+*.dylib
+*.so
+*.dll
+*.exe
+*.wasm
+wasm/pkg/
+wasm/output/
+
+# IDEs
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+coverage/
+.nyc_output/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+plan.md
+.serena
+libheif-js

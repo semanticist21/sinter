@@ -1,0 +1,16 @@
+{
+  "name": "sinter-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "bun --filter '*' build",
+    "check": "biome check . && bun --filter @sinter/web check",
+    "fix": "biome check . --write",
+    "update": "bun update && brew upgrade zig"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.11"
+  }
+}

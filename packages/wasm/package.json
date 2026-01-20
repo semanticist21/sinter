@@ -1,0 +1,14 @@
+{
+  "name": "@sinter/wasm",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "WASM image codecs for sinter",
+  "exports": {
+    ".": "./dist/main.wasm"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "zig build-exe src/main.zig -target wasm32-freestanding -fno-entry -O ReleaseSmall --export=greet -femit-bin=dist/main.wasm",
+    "run": "zig run src/main.zig"
+  }
+}
