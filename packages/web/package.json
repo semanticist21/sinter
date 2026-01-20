@@ -1,0 +1,20 @@
+{
+  "name": "@sinter/web",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "High-performance image processing library",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsgo",
+    "check": "tsgo --noEmit"
+  },
+  "devDependencies": {
+    "@typescript/native-preview": "latest"
+  }
+}
