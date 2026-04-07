@@ -5,7 +5,7 @@
     "": {
       "name": "sinter-monorepo",
       "devDependencies": {
-        "@biomejs/biome": "^2.3.11",
+        "@biomejs/biome": "^2.4.10",
       },
     },
     "packages/demo": {

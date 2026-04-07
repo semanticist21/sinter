@@ -1,8 +1,8 @@
-import type { SinterFormatStage } from "./format/stage";
+import type { SinterFormatStage } from "./format";
 
-// 진입점
-export function compress(file: File): SinterFormatStage {
-  throw new Error("구현 전");
+// Entry point
+export function compress(_file: File): SinterFormatStage {
+  throw new Error("Not implemented yet");
 }
 
 // compress(new File([], "example.txt")).allowFormats(["avif", "webp"], {

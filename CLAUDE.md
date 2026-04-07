@@ -4,33 +4,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Sinter** - 브라우저용 고성능 이미지 압축 라이브러리 (Bun Workspace Monorepo)
+**Sinter** - High-performance browser image compression library (Bun workspace monorepo)
 
 ## Structure
 
 ```
 packages/
-├── module/    # @sinter/module - TypeScript 라이브러리 (tsdown 빌드)
-└── demo/      # @sinter/demo - 데모 앱 (Rspack + React + Tailwind)
+├── module/    # @sinter/module - TypeScript library (built with tsdown)
+└── demo/      # @sinter/demo - Demo app (Rspack + React + Tailwind)
 ```
 
 ## Commands
 
 ```bash
-bun install        # 의존성 설치
-bun run build      # 전체 빌드
-bun run check      # Biome lint + TypeScript 타입 체크 (읽기 전용)
-bun run fix        # Biome 자동 포맷 및 수정 (--write)
-bun run demo       # module 빌드 후 demo 개발 서버 시작 (포트 4173)
-bun run dev        # demo 개발 서버만 시작 (module 빌드 없음)
-bun run update     # 의존성 업데이트
+bun install        # Install dependencies
+bun run build      # Build everything
+bun run check      # Run Biome lint + TypeScript type checks (read-only)
+bun run fix        # Apply Biome formatting and safe fixes (--write)
+bun run demo       # Build module, then start the demo dev server (port 4173)
+bun run dev        # Start only the demo dev server (does not build module)
+bun run update     # Update dependencies
 ```
 
 ### Package-specific
 
 ```bash
-bun --filter @sinter/module build    # module만 빌드
-bun --filter @sinter/demo dev        # demo 개발 서버만 시작
+bun --filter @sinter/module build    # Build only the module
+bun --filter @sinter/demo dev        # Start only the demo dev server
 ```
 
 ## Packages
@@ -41,8 +41,8 @@ bun --filter @sinter/demo dev        # demo 개발 서버만 시작
 
 ### @sinter/demo
 - **Stack**: Rspack + React 19 + Tailwind CSS v4
-- **Purpose**: 배포 전 라이브러리 기능 테스트용 데모 앱
-- **Dev**: rspack alias로 `@sinter/module` dist 직접 참조
+- **Purpose**: Demo app for testing library behavior before release
+- **Dev**: References `@sinter/module` dist directly through an rspack alias
 
 ## Code Style
 
@@ -53,26 +53,26 @@ bun --filter @sinter/demo dev        # demo 개발 서버만 시작
 
 - **Commit**: Conventional Commits (`feat:`, `fix:`, `refactor:`, `build:`, `docs:`, `chore:`)
 
-## API 설계 결정사항 (@sinter/module)
+## API Design Decisions (@sinter/module)
 
-### 진입점 및 체이닝 구조
+### Entry Point and Chaining Shape
 ```
 compress(file: File)
   .keepFormat() | .toFormat(format, options?) | .allowFormats(allowed, to, options?)
-  .defaultQuality(80)   // size 제약 없을 때 기본 quality
-  .size(1, 'MB')        // 파일 크기 제약 (value, unit 둘 다 필수)
-  .width(300)           // width만 리사이즈
-  .height(200)          // height만 리사이즈
-  .dimensions(300, 200) // width + height 동시 (둘 다 필수)
-  .run()                // 터미널 메서드, Promise<Blob> 반환
+  .defaultQuality(80)   // Default quality when no size constraint is set
+  .size(1, 'MB')        // File size constraint (both value and unit are required)
+  .width(300)           // Resize by width only
+  .height(200)          // Resize by height only
+  .dimensions(300, 200) // Resize width and height together (both required)
+  .run()                // Terminal method, returns Promise<Blob>
 ```
 
-### 주요 결정
-- **터미널 메서드**: `.run()` (진입점 `compress()`와 겹침 방지)
-- **압축 실행**: single-pass (generation loss 방지) — decode → resize → encode 한 번
-- **파이프라인**: `pipeline[]` 배열로 호출 순서 기록, `run()` 시점에 @jsquash로 단일 패스 번역
-- **`defaultQuality` vs `size`**: `size`가 있으면 quality를 낮춰 size 충족, 없으면 `defaultQuality` 그대로
-- **`width`/`height`/`dimensions` 충돌**: 나중에 호출된 것이 이김 + `console.warn` 발생
-- **`quality` 중복 호출** (`defaultQuality(80).defaultQuality(90)`): last-wins
-- **코덱**: `@jsquash/avif`, `@jsquash/webp`, `@jsquash/jpeg`, `@jsquash/png` (브라우저용 WASM)
-- **Worker 분리**: 초기 구현은 메인 스레드, 추후 내부만 Worker로 교체 가능 (인터페이스 변경 없음)
+### Key Decisions
+- **Terminal method**: `.run()` to avoid clashing with the `compress()` entry point
+- **Compression execution**: Single-pass to avoid generation loss — decode -> resize -> encode once
+- **Pipeline**: Record call order in a `pipeline[]` array, then translate it into a single pass with @jsquash at `run()`
+- **`defaultQuality` vs `size`**: If `size` is set, lower the quality until the size target is met; otherwise keep `defaultQuality`
+- **`width`/`height`/`dimensions` conflicts**: Last call wins and emits `console.warn`
+- **Repeated `quality` calls**: `defaultQuality(80).defaultQuality(90)` is last-wins
+- **Codecs**: `@jsquash/avif`, `@jsquash/webp`, `@jsquash/jpeg`, `@jsquash/png` (browser WASM)
+- **Worker separation**: Initial implementation stays on the main thread; internals can move to a Worker later without changing the interface
