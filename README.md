@@ -5,7 +5,7 @@
 <h1 align="center">Sinter</h1>
 
 <p align="center">
-  High-performance image compression library for the browser
+    Let the user compress their own images.
 </p>
 
 ---

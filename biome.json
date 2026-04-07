@@ -1,4 +1,5 @@
 {
+  "$schema": "https://biomejs.dev/schemas/2.4.10/schema.json",
   "linter": {
     "enabled": true,
     "rules": {
@@ -13,7 +14,7 @@
       },
       "suspicious": {
         "noDoubleEquals": "warn",
-        "noExplicitAny": "warn",
+        "noExplicitAny": "error",
         "noImplicitAnyLet": "warn",
         "noPrototypeBuiltins": "warn"
       },
@@ -50,6 +51,21 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["src/**", "*.json", "*.ts", "*.js"]
+    "includes": [
+      "package.json",
+      "biome.json",
+      "tsconfig.base.json",
+      "packages/**/package.json",
+      "packages/**/tsconfig.json",
+      "packages/**/index.html",
+      "packages/**/*.config.js",
+      "packages/**/*.config.mjs",
+      "packages/**/*.config.ts",
+      "packages/**/src/**/*.js",
+      "packages/**/src/**/*.mjs",
+      "packages/**/src/**/*.ts",
+      "packages/**/src/**/*.tsx",
+      "packages/**/src/**/*.css"
+    ]
   }
 }
