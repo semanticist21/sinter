@@ -66,6 +66,8 @@ compress(file: File)
   .run()                                     // execute, returns Promise<Blob>
 ```
 
+Only the format stage (`keepFormat`, `toFormat`, or `allowFormats`) is required. Everything after it — `codecOptions`, `maxQuality`, `dimensions`, `size`, `timeout` — is optional. Chain what you need, skip what you don't.
+
 Each stage returns a narrowed type. **Calling the same method twice is a compile-time error** — no silent overwrites.
 
 ### Format Stage
@@ -99,7 +101,7 @@ compress(file)
 | `maxQuality(n)` | Sets quality ceiling (1-100). May be lowered further to meet `size()`. |
 | `size(value, unit)` | Target file size (`"KB"` or `"MB"`). Uses quality binary search, then dimension reduction. |
 | `dimensions({ width?, height? })` | Resize within bounds, preserving aspect ratio. |
-| `timeout(seconds)` | Rejects with error if compression exceeds the time limit. |
+| `timeout(seconds)` | Rejects with error if compression exceeds the time limit. No timeout by default. |
 
 ### Errors
 
