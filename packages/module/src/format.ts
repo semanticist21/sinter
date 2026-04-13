@@ -1,23 +1,31 @@
-import type { ImageFormat, SinterBuilder } from "./types";
+import { SinterCodecStage } from "./codec";
+import type { ImageFormat } from "./types";
 
-// Codec option mapping by format
-export type CodecMap = {
-  avif: { speed?: number; quality?: number };
-  webp: { lossless?: boolean; quality?: number };
-  jpeg: { progressive?: boolean };
-  png: Record<string, never>;
-};
+export class SinterFormatStage {
+  /** Keeps the original image format for the output blob. */
+  keepFormat(): SinterCodecStage {
+    return new SinterCodecStage();
+  }
 
-// Format selection stage after compress(file)
-export interface SinterFormatStage {
-  // Keep the original format
-  keepFormat: () => SinterBuilder;
-  // Convert only formats outside the allowed list to the target format
-  allowFormats: <F extends ImageFormat>(
-    allowed: ImageFormat[],
-    to: F,
-    options?: { codec?: CodecMap[F] }
-  ) => SinterBuilder;
-  // Always convert to the target format
-  toFormat: <F extends ImageFormat>(format: F, options?: { codec?: CodecMap[F] }) => SinterBuilder;
+  /**
+   * Always encodes the result into the given output format.
+   *
+   * @param _format Target output format.
+   */
+  toFormat<F extends ImageFormat>(_format: F): SinterCodecStage<F> {
+    return new SinterCodecStage<F>();
+  }
+
+  /**
+   * Keeps the input format when it is in the allowed list, otherwise converts to `_to`.
+   *
+   * @param _allowed Formats that may pass through unchanged.
+   * @param _to Fallback format used when the source format is not allowed.
+   */
+  allowFormats<A extends readonly ImageFormat[], F extends ImageFormat>(
+    _allowed: A,
+    _to: F
+  ): SinterCodecStage<A[number] | F> {
+    return new SinterCodecStage<A[number] | F>();
+  }
 }

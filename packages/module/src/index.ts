@@ -1,14 +1,26 @@
-import type { SinterFormatStage } from "./format";
+import { SinterFormatStage } from "./format";
 
-// Entry point
+/**
+ * Starts a compression pipeline for an image file.
+ *
+ * Choose an output format first, then add quality, size, or resize constraints,
+ * and finish the chain with `run()`.
+ *
+ * @example
+ * const blob = await compress(file)
+ *   .allowFormats(["avif", "webp"], "webp")
+ *   .codecOptions({ webp: { lossless: false } })
+ *   .maxQuality(80)
+ *   .dimensions({ width: 1200 })
+ *   .run();
+ */
 export function compress(_file: File): SinterFormatStage {
-  throw new Error("Not implemented yet");
+  return new SinterFormatStage();
 }
 
-// compress(new File([], "example.txt")).allowFormats(["avif", "webp"], {
-//   "to": "avif",
-// }).quality(80).dimensions(800, 600).compress();
-//
-
-// compress(new File([], "example.txt")).keepFormat()
-// compress(new File([], "example.txt")).toFormat("avif")
+compress(new File([], "image.webp"))
+  .allowFormats(["avif"], "webp")
+  .codecOptions({ webp: { lossless: false } })
+  .maxQuality(80)
+  .dimensions({ width: 300 })
+  .run();

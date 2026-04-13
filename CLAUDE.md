@@ -58,12 +58,13 @@ bun --filter @sinter/demo dev        # Start only the demo dev server
 ### Entry Point and Chaining Shape
 ```
 compress(file: File)
-  .keepFormat() | .toFormat(format, options?) | .allowFormats(allowed, to, options?)
-  .defaultQuality(80)   // Default quality when no size constraint is set
+  .keepFormat() | .toFormat(format) | .allowFormats(allowed, to)
+  .codecOptions({ webp: { lossless: false } }) // Format-specific codec options
+  .maxQuality(80)       // Quality ceiling when no size constraint is set
   .size(1, 'MB')        // File size constraint (both value and unit are required)
-  .width(300)           // Resize by width only
-  .height(200)          // Resize by height only
-  .dimensions(300, 200) // Resize width and height together (both required)
+  .dimensions({ width: 300 })              // Resize by width only
+  .dimensions({ height: 200 })             // Resize by height only
+  .dimensions({ width: 300, height: 200 }) // Resize width and height together
   .run()                // Terminal method, returns Promise<Blob>
 ```
 
@@ -71,8 +72,10 @@ compress(file: File)
 - **Terminal method**: `.run()` to avoid clashing with the `compress()` entry point
 - **Compression execution**: Single-pass to avoid generation loss — decode -> resize -> encode once
 - **Pipeline**: Record call order in a `pipeline[]` array, then translate it into a single pass with @jsquash at `run()`
-- **`defaultQuality` vs `size`**: If `size` is set, lower the quality until the size target is met; otherwise keep `defaultQuality`
-- **`width`/`height`/`dimensions` conflicts**: Last call wins and emits `console.warn`
-- **Repeated `quality` calls**: `defaultQuality(80).defaultQuality(90)` is last-wins
+- **Codec options stage**: `codecOptions()` holds format-specific encoder settings after the output format policy is chosen
+- **`maxQuality` vs `size`**: If `size` is set, lower the quality until the size target is met; otherwise keep `maxQuality`
+- **Quality vs codec options**: Keep quality on `maxQuality()` so shared quality rules do not compete with format-specific options
+- **Repeated `dimensions` calls**: Last call wins and emits `console.warn`
+- **Repeated `maxQuality` calls**: `maxQuality(80).maxQuality(90)` is last-wins
 - **Codecs**: `@jsquash/avif`, `@jsquash/webp`, `@jsquash/jpeg`, `@jsquash/png` (browser WASM)
 - **Worker separation**: Initial implementation stays on the main thread; internals can move to a Worker later without changing the interface
