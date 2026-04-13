@@ -12,3 +12,27 @@ export type CodecMap = {
 export type CodecOptions<F extends ImageFormat = ImageFormat> = Partial<{
   [K in F]: CodecMap[K];
 }>;
+
+// Internal format policy — resolved to a concrete output format at run-time
+export type FormatPolicy =
+  | { type: "keep" }
+  | { type: "fixed"; format: ImageFormat }
+  | { type: "allow"; allowed: readonly ImageFormat[]; fallback: ImageFormat };
+
+// Internal pipeline configuration accumulated through the fluent chain
+export interface PipelineConfig {
+  file: File;
+  formatPolicy: FormatPolicy;
+  codecOpts: Partial<CodecMap>;
+  maxQuality?: number;
+  dims?: { width?: number; height?: number };
+  sizeLimit?: number; // bytes
+}
+
+export function createConfig(file: File): PipelineConfig {
+  return {
+    file,
+    formatPolicy: { type: "keep" },
+    codecOpts: {},
+  };
+}

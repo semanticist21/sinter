@@ -1,31 +1,42 @@
 import { SinterCodecStage } from "./codec";
-import type { ImageFormat } from "./types";
+import type { ImageFormat, PipelineConfig } from "./types";
 
 export class SinterFormatStage {
+  /** @internal */
+  private readonly _config: PipelineConfig;
+
+  /** @internal */
+  constructor(config: PipelineConfig) {
+    this._config = config;
+  }
+
   /** Keeps the original image format for the output blob. */
   keepFormat(): SinterCodecStage {
-    return new SinterCodecStage();
+    this._config.formatPolicy = { type: "keep" };
+    return new SinterCodecStage(this._config);
   }
 
   /**
    * Always encodes the result into the given output format.
    *
-   * @param _format Target output format.
+   * @param format Target output format.
    */
-  toFormat<F extends ImageFormat>(_format: F): SinterCodecStage<F> {
-    return new SinterCodecStage<F>();
+  toFormat<F extends ImageFormat>(format: F): SinterCodecStage<F> {
+    this._config.formatPolicy = { type: "fixed", format };
+    return new SinterCodecStage<F>(this._config);
   }
 
   /**
-   * Keeps the input format when it is in the allowed list, otherwise converts to `_to`.
+   * Keeps the input format when it is in the allowed list, otherwise converts to the fallback.
    *
-   * @param _allowed Formats that may pass through unchanged.
-   * @param _to Fallback format used when the source format is not allowed.
+   * @param allowed Formats that may pass through unchanged.
+   * @param to Fallback format used when the source format is not allowed.
    */
   allowFormats<A extends readonly ImageFormat[], F extends ImageFormat>(
-    _allowed: A,
-    _to: F
+    allowed: A,
+    to: F
   ): SinterCodecStage<A[number] | F> {
-    return new SinterCodecStage<A[number] | F>();
+    this._config.formatPolicy = { type: "allow", allowed, fallback: to };
+    return new SinterCodecStage<A[number] | F>(this._config);
   }
 }

@@ -6,4 +6,5 @@ export default defineConfig({
   format: ["esm"],
   clean: true,
   outDir: "dist",
+  external: [/^@jsquash\//],
 });

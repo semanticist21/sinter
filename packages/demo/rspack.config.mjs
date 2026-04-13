@@ -11,9 +11,9 @@ export default defineConfig({
     main: "./src/main.tsx",
   },
   resolve: {
-    // resolve against dist to simulate the published package
     alias: {
       "@sinter/module": fileURLToPath(new URL("../module/dist/index.mjs", import.meta.url)),
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
     extensions: [".tsx", ".ts", ".jsx", ".js"],
   },
@@ -60,6 +60,7 @@ export default defineConfig({
   ].filter(Boolean),
   experiments: {
     css: true,
+    asyncWebAssembly: true,
   },
   devServer: {
     port: 4173,

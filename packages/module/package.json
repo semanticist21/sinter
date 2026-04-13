@@ -1,7 +1,25 @@
 {
   "name": "@sinter/module",
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "High-performance browser image compression library with fluent API — supports JPEG, PNG, WebP, and AVIF via WASM codecs",
+  "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/semanticist21/sinter.git",
+    "directory": "packages/module"
+  },
+  "keywords": [
+    "image",
+    "compression",
+    "webp",
+    "avif",
+    "jpeg",
+    "png",
+    "wasm",
+    "browser",
+    "resize"
+  ],
   "files": [
     "dist"
   ],
@@ -17,10 +35,18 @@
   "sideEffects": false,
   "scripts": {
     "build": "tsdown",
-    "check": "tsc -p tsconfig.json --noEmit"
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "bun test"
   },
   "devDependencies": {
+    "@types/bun": "^1.3.12",
     "tsdown": "^0.21.7",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@jsquash/avif": "^2.1.1",
+    "@jsquash/jpeg": "^1.6.0",
+    "@jsquash/png": "^3.1.1",
+    "@jsquash/webp": "^1.5.0"
   }
 }

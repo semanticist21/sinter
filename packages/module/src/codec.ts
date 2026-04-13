@@ -8,7 +8,8 @@ export class SinterCodecStage<F extends ImageFormat = ImageFormat> extends Sinte
    * Quality stays separate on `maxQuality()` so shared quality rules do not compete with
    * per-codec settings.
    */
-  codecOptions(_options: CodecOptions<F>): this {
+  codecOptions(options: CodecOptions<F>): this {
+    Object.assign(this._config.codecOpts, options);
     return this;
   }
 }

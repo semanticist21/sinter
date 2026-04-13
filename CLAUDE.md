@@ -30,19 +30,24 @@ bun run update     # Update dependencies
 
 ```bash
 bun --filter @sinter/module build    # Build only the module
+bun --filter @sinter/module test     # Run tests (bun test, 68 tests, ~50s)
 bun --filter @sinter/demo dev        # Start only the demo dev server
 ```
 
 ## Packages
 
 ### @sinter/module
-- **Build**: `tsdown`
+- **Build**: `tsdown` (externalizes `@jsquash/*`)
 - **Output**: `dist/index.mjs` + `dist/index.d.mts`
+- **Test**: `bun test` with polyfills for `ImageData`/`OffscreenCanvas` (see `test/setup.ts`)
+- **Test assets**: `assets/test/` has test.jpeg, test.png, test.webp, test.avif
+- **Codecs**: `@jsquash/*` packages use WASM; dynamic `import()` with `.js` extension required for ESM resolution
 
 ### @sinter/demo
-- **Stack**: Rspack + React 19 + Tailwind CSS v4
+- **Stack**: Rspack + React 19 + Tailwind CSS v4 + shadcn/ui (green theme)
 - **Purpose**: Demo app for testing library behavior before release
 - **Dev**: References `@sinter/module` dist directly through an rspack alias
+- **WASM**: `experiments.asyncWebAssembly` enabled in rspack config
 
 ## Code Style
 
@@ -75,7 +80,15 @@ compress(file: File)
 - **Codec options stage**: `codecOptions()` holds format-specific encoder settings after the output format policy is chosen
 - **`maxQuality` vs `size`**: If `size` is set, lower the quality until the size target is met; otherwise keep `maxQuality`
 - **Quality vs codec options**: Keep quality on `maxQuality()` so shared quality rules do not compete with format-specific options
-- **Repeated `dimensions` calls**: Last call wins and emits `console.warn`
-- **Repeated `maxQuality` calls**: `maxQuality(80).maxQuality(90)` is last-wins
+- **Duplicate call prevention**: `maxQuality()`, `dimensions()`, `size()` return `Omit<this, "method">` — calling the same method twice is a compile-time error
 - **Codecs**: `@jsquash/avif`, `@jsquash/webp`, `@jsquash/jpeg`, `@jsquash/png` (browser WASM)
 - **Worker separation**: Initial implementation stays on the main thread; internals can move to a Worker later without changing the interface
+
+### Implementation Notes
+- **Pipeline state**: Uses shared mutable `PipelineConfig` object (not a `pipeline[]` array) — functionally equivalent to spec, enforced by the type-safe stage chain
+- **Size enforcement**: Two-phase approach — Phase 1: quality binary search (lossy only), Phase 2: dimension reduction (70% per step, max 8 steps). Emits `console.warn` if target not met
+- **PNG**: Lossless format — `maxQuality` has no effect; size constraint uses dimension reduction only
+- **WebP lossless**: `codecOptions({ webp: { lossless: true } })` converts `boolean` to `number` (0/1) for the encoder
+- **Inflation guard**: When same format, no actual resize, no size limit — returns original bytes if re-encode inflates
+- **Quality-vs-dimensions heuristic**: If dimension reduction brings pixel count ≤ `maxQuality/100`, encoder quality is set to 100 (dimension reduction already satisfies the quality goal)
+- **Format detection**: Magic bytes only (not file extension) — JPEG `FF D8 FF`, PNG `89 50 4E 47...`, WebP `RIFF...WEBP`, AVIF ftyp box with `avif`/`avis`/`mif1` brand
