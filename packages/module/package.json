@@ -1,6 +1,6 @@
 {
   "name": "sinter-js",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "High-performance browser image compression library with fluent API — supports JPEG, PNG, WebP, and AVIF via WASM codecs",
   "license": "MIT",
   "type": "module",
