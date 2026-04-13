@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```
 packages/
-├── module/    # @sinter/module - TypeScript library (built with tsdown)
+├── module/    # sinter-js - TypeScript library (built with tsdown)
 └── demo/      # @sinter/demo - Demo app (Rspack + React + Tailwind)
 ```
 
@@ -29,14 +29,14 @@ bun run update     # Update dependencies
 ### Package-specific
 
 ```bash
-bun --filter @sinter/module build    # Build only the module
-bun --filter @sinter/module test     # Run tests (bun test, 68 tests, ~50s)
+bun --filter sinter-js build    # Build only the module
+bun --filter sinter-js test     # Run tests (bun test, 68 tests, ~50s)
 bun --filter @sinter/demo dev        # Start only the demo dev server
 ```
 
 ## Packages
 
-### @sinter/module
+### sinter-js
 - **Build**: `tsdown` (externalizes `@jsquash/*`)
 - **Output**: `dist/index.mjs` + `dist/index.d.mts`
 - **Test**: `bun test` with polyfills for `ImageData`/`OffscreenCanvas` (see `test/setup.ts`)
@@ -46,7 +46,7 @@ bun --filter @sinter/demo dev        # Start only the demo dev server
 ### @sinter/demo
 - **Stack**: Rspack + React 19 + Tailwind CSS v4 + shadcn/ui (green theme)
 - **Purpose**: Demo app for testing library behavior before release
-- **Dev**: References `@sinter/module` dist directly through an rspack alias
+- **Dev**: References `sinter-js` dist directly through an rspack alias
 - **WASM**: `experiments.asyncWebAssembly` enabled in rspack config
 
 ## Code Style
@@ -58,7 +58,7 @@ bun --filter @sinter/demo dev        # Start only the demo dev server
 
 - **Commit**: Conventional Commits (`feat:`, `fix:`, `refactor:`, `build:`, `docs:`, `chore:`)
 
-## API Design Decisions (@sinter/module)
+## API Design Decisions (sinter-js)
 
 ### Entry Point and Chaining Shape
 ```
@@ -70,6 +70,7 @@ compress(file: File)
   .dimensions({ width: 300 })              // Resize by width only
   .dimensions({ height: 200 })             // Resize by height only
   .dimensions({ width: 300, height: 200 }) // Resize width and height together
+  .timeout(30)          // Timeout in seconds (rejects if exceeded)
   .run()                // Terminal method, returns Promise<Blob>
 ```
 
@@ -82,7 +83,8 @@ compress(file: File)
 - **Quality vs codec options**: Keep quality on `maxQuality()` so shared quality rules do not compete with format-specific options
 - **Duplicate call prevention**: `maxQuality()`, `dimensions()`, `size()` return `Omit<this, "method">` — calling the same method twice is a compile-time error
 - **Codecs**: `@jsquash/avif`, `@jsquash/webp`, `@jsquash/jpeg`, `@jsquash/png` (browser WASM)
-- **Worker separation**: Initial implementation stays on the main thread; internals can move to a Worker later without changing the interface
+- **Web Worker**: `run()` offloads the entire pipeline (decode → resize → encode) to a dedicated Worker to keep the UI responsive. Falls back to direct execution in non-browser environments (bun test)
+- **Timeout**: `.timeout(seconds)` rejects with `SinterCodecError` and terminates the Worker if compression exceeds the limit
 
 ### Implementation Notes
 - **Pipeline state**: Uses shared mutable `PipelineConfig` object (not a `pipeline[]` array) — functionally equivalent to spec, enforced by the type-safe stage chain
@@ -92,3 +94,5 @@ compress(file: File)
 - **Inflation guard**: When same format, no actual resize, no size limit — returns original bytes if re-encode inflates
 - **Quality-vs-dimensions heuristic**: If dimension reduction brings pixel count ≤ `maxQuality/100`, encoder quality is set to 100 (dimension reduction already satisfies the quality goal)
 - **Format detection**: Magic bytes only (not file extension) — JPEG `FF D8 FF`, PNG `89 50 4E 47...`, WebP `RIFF...WEBP`, AVIF ftyp box with `avif`/`avis`/`mif1` brand
+- **Worker build**: `tsdown` produces two entries — `dist/index.mjs` (main) + `dist/worker.mjs` (worker). The worker is loaded via `new URL("./worker.mjs", import.meta.url)` pattern recognized by Rspack/Vite/Webpack
+- **Canvas**: Uses `OffscreenCanvas` only (no `document.createElement` fallback) — runs in Worker context

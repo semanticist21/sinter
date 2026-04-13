@@ -8,8 +8,9 @@
   "scripts": {
     "build": "bun --filter '*' build",
     "check": "biome check . && bun --filter '*' check",
-    "demo": "bun --filter @sinter/module build && bun --filter @sinter/demo dev",
+    "demo": "bun --filter sinter-js build && bun --filter @sinter/demo dev",
     "dev": "bun --filter @sinter/demo dev",
+    "publish:module": "bun --filter sinter-js build && cd packages/module && bun publish",
     "fix": "biome check . --write",
     "update": "bun update"
   },

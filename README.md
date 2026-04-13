@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@sinter/module"><img src="https://img.shields.io/npm/v/@sinter/module" alt="npm" /></a>
-  <a href="https://github.com/semanticist21/sinter/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/@sinter/module" alt="license" /></a>
+  <a href="https://www.npmjs.com/package/sinter-js"><img src="https://img.shields.io/npm/v/sinter-js" alt="npm" /></a>
+  <a href="https://github.com/semanticist21/sinter/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/sinter-js" alt="license" /></a>
   <img src="https://img.shields.io/badge/runtime-browser-brightgreen" alt="browser" />
 </p>
 
@@ -22,13 +22,14 @@ No server round-trips. No backend costs. The user's browser does all the work.
 
 - JPEG, PNG, WebP, AVIF
 - Resize, quality control, file size targeting
+- Runs in a **Web Worker** — UI never blocks
 - Fluent, type-safe API with compile-time guardrails
 - Zero server load
 
 ## Install
 
 ```bash
-npm install @sinter/module
+npm install sinter-js
 ```
 
 > `@jsquash/*` WASM codec packages are included as dependencies and loaded on demand.
@@ -36,7 +37,7 @@ npm install @sinter/module
 ## Quick Start
 
 ```ts
-import { compress } from "@sinter/module";
+import { compress } from "sinter-js";
 
 const blob = await compress(file)
   .toFormat("webp")
@@ -60,6 +61,7 @@ compress(file: File)
   .maxQuality(80)                            // quality ceiling (1-100)
   .dimensions({ width: 1200 })               // resize constraints
   .size(1, "MB")                             // file size target
+  .timeout(30)                               // timeout in seconds
 
   .run()                                     // execute, returns Promise<Blob>
 ```
@@ -97,11 +99,12 @@ compress(file)
 | `maxQuality(n)` | Sets quality ceiling (1-100). May be lowered further to meet `size()`. |
 | `size(value, unit)` | Target file size (`"KB"` or `"MB"`). Uses quality binary search, then dimension reduction. |
 | `dimensions({ width?, height? })` | Resize within bounds, preserving aspect ratio. |
+| `timeout(seconds)` | Rejects with error if compression exceeds the time limit. |
 
 ### Errors
 
 ```ts
-import { SinterValidationError, SinterCodecError } from "@sinter/module";
+import { SinterValidationError, SinterCodecError } from "sinter-js";
 ```
 
 | Error | When |
@@ -119,9 +122,11 @@ import { SinterValidationError, SinterCodecError } from "@sinter/module";
 
 Single decode-encode pass. No generation loss from repeated re-encoding.
 
+All heavy lifting runs in a **Web Worker**, so the main thread stays responsive.
+
 ## Browser Only
 
-Sinter uses `File`, `Blob`, `OffscreenCanvas`, and WASM — it runs in modern browsers, not Node.js.
+Sinter uses `File`, `Blob`, `OffscreenCanvas`, Web Workers, and WASM — it runs in modern browsers, not Node.js.
 
 ## License
 

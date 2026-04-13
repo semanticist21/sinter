@@ -27,6 +27,30 @@ export interface PipelineConfig {
   maxQuality?: number;
   dims?: { width?: number; height?: number };
   sizeLimit?: number; // bytes
+  timeout?: number; // seconds
+}
+
+// Worker message protocol
+export interface WorkerRequest {
+  buffer: ArrayBuffer;
+  formatPolicy: FormatPolicy;
+  codecOpts: Partial<CodecMap>;
+  maxQuality?: number;
+  dims?: { width?: number; height?: number };
+  sizeLimit?: number;
+}
+
+export interface WorkerResultMessage {
+  type: "result";
+  buffer: ArrayBuffer;
+  mime: string;
+  originalByteLength: number;
+}
+
+export interface WorkerErrorMessage {
+  type: "error";
+  message: string;
+  errorType: "validation" | "codec" | "unknown";
 }
 
 export function createConfig(file: File): PipelineConfig {

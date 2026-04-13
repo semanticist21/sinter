@@ -34,6 +34,7 @@ interface Result {
 }
 
 type FormatMode = "keep" | "to" | "allow";
+type OptionalBoolean = boolean | null;
 
 const FORMAT_OPTIONS: ImageFormat[] = ["webp", "avif", "jpeg", "png"];
 
@@ -137,19 +138,19 @@ function getActiveFormats(
 
 function buildCodecOptions(
   activeFormats: ImageFormat[],
-  webpLossless: boolean,
-  avifSpeed: number,
-  jpegProgressive: boolean
+  webpLossless: OptionalBoolean,
+  avifSpeed: string,
+  jpegProgressive: OptionalBoolean
 ): Partial<CodecMap> {
   const options: Partial<CodecMap> = {};
 
-  if (activeFormats.includes("webp")) {
+  if (activeFormats.includes("webp") && webpLossless != null) {
     options.webp = { lossless: webpLossless };
   }
-  if (activeFormats.includes("avif")) {
-    options.avif = { speed: avifSpeed };
+  if (activeFormats.includes("avif") && avifSpeed.trim() !== "") {
+    options.avif = { speed: Number(avifSpeed) };
   }
-  if (activeFormats.includes("jpeg")) {
+  if (activeFormats.includes("jpeg") && jpegProgressive != null) {
     options.jpeg = { progressive: jpegProgressive };
   }
 
@@ -253,9 +254,9 @@ export function App() {
   const [toFormat, setToFormat] = useState<ImageFormat>("webp");
   const [allowedFormats, setAllowedFormats] = useState<ImageFormat[]>(["avif", "webp"]);
   const [fallbackFormat, setFallbackFormat] = useState<ImageFormat>("webp");
-  const [webpLossless, setWebpLossless] = useState(false);
-  const [avifSpeed, setAvifSpeed] = useState("8");
-  const [jpegProgressive, setJpegProgressive] = useState(false);
+  const [webpLossless, setWebpLossless] = useState<OptionalBoolean>(null);
+  const [avifSpeed, setAvifSpeed] = useState("");
+  const [jpegProgressive, setJpegProgressive] = useState<OptionalBoolean>(null);
 
   // Other options
   const [quality, setQuality] = useState(80);
@@ -320,12 +321,7 @@ export function App() {
     allowedFormats,
     fallbackFormat
   );
-  const codecOptions = buildCodecOptions(
-    activeFormats,
-    webpLossless,
-    Number(avifSpeed) || 0,
-    jpegProgressive
-  );
+  const codecOptions = buildCodecOptions(activeFormats, webpLossless, avifSpeed, jpegProgressive);
 
   const handleCompress = useCallback(async () => {
     if (!file) {
@@ -582,22 +578,21 @@ export function App() {
                 {activeFormats.includes("webp") && (
                   <div className="space-y-2">
                     <Label className="text-xs text-muted-foreground">WebP lossless</Label>
-                    <div className="flex gap-2">
-                      <Button
-                        variant={webpLossless ? "outline" : "default"}
-                        size="sm"
-                        onClick={() => setWebpLossless(false)}
-                      >
-                        Lossy
-                      </Button>
-                      <Button
-                        variant={webpLossless ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setWebpLossless(true)}
-                      >
-                        Lossless
-                      </Button>
-                    </div>
+                    <Select
+                      value={webpLossless == null ? "unset" : webpLossless ? "lossless" : "lossy"}
+                      onValueChange={value =>
+                        setWebpLossless(value === "unset" ? null : value === "lossless")
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unset">Default</SelectItem>
+                        <SelectItem value="lossy">Lossy</SelectItem>
+                        <SelectItem value="lossless">Lossless</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 )}
 
@@ -613,6 +608,7 @@ export function App() {
                       max={10}
                       value={avifSpeed}
                       onChange={e => setAvifSpeed(e.target.value)}
+                      placeholder="Default (6)"
                     />
                   </div>
                 )}
@@ -620,22 +616,27 @@ export function App() {
                 {activeFormats.includes("jpeg") && (
                   <div className="space-y-2">
                     <Label className="text-xs text-muted-foreground">JPEG scan mode</Label>
-                    <div className="flex gap-2">
-                      <Button
-                        variant={jpegProgressive ? "outline" : "default"}
-                        size="sm"
-                        onClick={() => setJpegProgressive(false)}
-                      >
-                        Baseline
-                      </Button>
-                      <Button
-                        variant={jpegProgressive ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setJpegProgressive(true)}
-                      >
-                        Progressive
-                      </Button>
-                    </div>
+                    <Select
+                      value={
+                        jpegProgressive == null
+                          ? "unset"
+                          : jpegProgressive
+                            ? "progressive"
+                            : "baseline"
+                      }
+                      onValueChange={value =>
+                        setJpegProgressive(value === "unset" ? null : value === "progressive")
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unset">Default</SelectItem>
+                        <SelectItem value="baseline">Baseline</SelectItem>
+                        <SelectItem value="progressive">Progressive</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 )}
               </div>

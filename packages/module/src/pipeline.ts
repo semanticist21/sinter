@@ -1,5 +1,13 @@
+import { detectFormat } from "./detect";
 import { SinterCodecError } from "./errors";
-import type { CodecMap, ImageFormat } from "./types";
+import type { CodecMap, ImageFormat, WorkerRequest, WorkerResultMessage } from "./types";
+
+const MIME: Record<ImageFormat, string> = {
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  avif: "image/avif",
+};
 
 // ---------------------------------------------------------------------------
 // Decode
@@ -99,14 +107,8 @@ export async function encodeImage(
 // Resize
 // ---------------------------------------------------------------------------
 
-function createCanvas(w: number, h: number): OffscreenCanvas | HTMLCanvasElement {
-  if (typeof OffscreenCanvas !== "undefined") {
-    return new OffscreenCanvas(w, h);
-  }
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  return canvas;
+function createCanvas(w: number, h: number): OffscreenCanvas {
+  return new OffscreenCanvas(w, h);
 }
 
 export interface TargetDimensions {
@@ -154,20 +156,14 @@ export function resizeImageData(imageData: ImageData, target: TargetDimensions):
   }
 
   const srcCanvas = createCanvas(imageData.width, imageData.height);
-  const srcCtx = srcCanvas.getContext("2d") as
-    | OffscreenCanvasRenderingContext2D
-    | CanvasRenderingContext2D
-    | null;
+  const srcCtx = srcCanvas.getContext("2d");
   if (!srcCtx) {
     throw new SinterCodecError("Failed to acquire 2D canvas context for resize (source).");
   }
   srcCtx.putImageData(imageData, 0, 0);
 
   const dstCanvas = createCanvas(target.width, target.height);
-  const dstCtx = dstCanvas.getContext("2d") as
-    | OffscreenCanvasRenderingContext2D
-    | CanvasRenderingContext2D
-    | null;
+  const dstCtx = dstCanvas.getContext("2d");
   if (!dstCtx) {
     throw new SinterCodecError("Failed to acquire 2D canvas context for resize (destination).");
   }
@@ -254,4 +250,85 @@ export async function encodeFitSize(
   }
 
   return encoded;
+}
+
+// ---------------------------------------------------------------------------
+// Full pipeline execution (shared by Worker and direct path)
+// ---------------------------------------------------------------------------
+
+export async function executePipeline(req: WorkerRequest): Promise<WorkerResultMessage> {
+  const { buffer, formatPolicy, codecOpts, maxQuality, dims, sizeLimit } = req;
+  const bytes = new Uint8Array(buffer);
+
+  // 1. Detect source format
+  const sourceFormat = detectFormat(bytes);
+
+  // 2. Resolve output format
+  let outputFormat: ImageFormat;
+  switch (formatPolicy.type) {
+    case "keep":
+      outputFormat = sourceFormat;
+      break;
+    case "fixed":
+      outputFormat = formatPolicy.format;
+      break;
+    case "allow":
+      outputFormat = (formatPolicy.allowed as readonly string[]).includes(sourceFormat)
+        ? sourceFormat
+        : formatPolicy.fallback;
+      break;
+  }
+
+  // 3. Decode
+  const imageData = await decodeImage(buffer, sourceFormat);
+  const srcPixels = imageData.width * imageData.height;
+
+  // 4. Resize
+  let resized = imageData;
+  let pixelRatio = 1;
+
+  if (dims) {
+    const target = computeDimensions(imageData.width, imageData.height, dims);
+    resized = resizeImageData(imageData, target);
+    pixelRatio = (resized.width * resized.height) / srcPixels;
+  }
+
+  // 5. Determine quality
+  let quality = 100;
+  if (maxQuality != null) {
+    const threshold = maxQuality / 100;
+    quality = pixelRatio <= threshold ? 100 : maxQuality;
+  }
+
+  // 6. Encode
+  let encoded: ArrayBuffer;
+
+  if (sizeLimit != null) {
+    encoded = await encodeFitSize(resized, outputFormat, sizeLimit, quality, codecOpts);
+  } else {
+    encoded = await encodeImage(resized, outputFormat, { quality, codecOpts });
+  }
+
+  // 7. Inflation guard
+  const actuallyResized = pixelRatio < 1;
+  if (
+    outputFormat === sourceFormat &&
+    !actuallyResized &&
+    sizeLimit == null &&
+    encoded.byteLength > buffer.byteLength
+  ) {
+    return {
+      type: "result",
+      buffer,
+      mime: MIME[outputFormat],
+      originalByteLength: buffer.byteLength,
+    };
+  }
+
+  return {
+    type: "result",
+    buffer: encoded,
+    mime: MIME[outputFormat],
+    originalByteLength: buffer.byteLength,
+  };
 }

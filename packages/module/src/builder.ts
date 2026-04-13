@@ -1,20 +1,10 @@
-import { detectFormat } from "./detect";
-import { SinterValidationError } from "./errors";
-import {
-  computeDimensions,
-  decodeImage,
-  encodeFitSize,
-  encodeImage,
-  resizeImageData,
-} from "./pipeline";
-import type { ImageFormat, PipelineConfig } from "./types";
-
-const MIME: Record<ImageFormat, string> = {
-  jpeg: "image/jpeg",
-  png: "image/png",
-  webp: "image/webp",
-  avif: "image/avif",
-};
+import { SinterCodecError, SinterValidationError } from "./errors";
+import type {
+  PipelineConfig,
+  WorkerErrorMessage,
+  WorkerRequest,
+  WorkerResultMessage,
+} from "./types";
 
 export class SinterBuilder {
   /** @internal */
@@ -67,77 +57,84 @@ export class SinterBuilder {
     return this;
   }
 
+  /** Sets a timeout in seconds. Rejects with an error if compression exceeds the limit. */
+  timeout(seconds: number): Omit<this, "timeout"> {
+    if (seconds <= 0) {
+      throw new SinterValidationError("timeout must be a positive number.");
+    }
+    this._config.timeout = seconds;
+    return this;
+  }
+
   /** Executes the configured pipeline and resolves the compressed image blob. */
   async run(): Promise<Blob> {
-    const { file, formatPolicy, codecOpts, maxQuality, dims, sizeLimit } = this._config;
+    const { file, formatPolicy, codecOpts, maxQuality, dims, sizeLimit, timeout } = this._config;
 
-    // 1. Read file bytes
     const buffer = await file.arrayBuffer();
-    const bytes = new Uint8Array(buffer);
 
-    // 2. Detect source format from magic bytes
-    const sourceFormat = detectFormat(bytes);
+    const request: WorkerRequest = {
+      buffer,
+      formatPolicy,
+      codecOpts,
+      maxQuality,
+      dims,
+      sizeLimit,
+    };
 
-    // 3. Resolve output format
-    let outputFormat: ImageFormat;
-    switch (formatPolicy.type) {
-      case "keep":
-        outputFormat = sourceFormat;
-        break;
-      case "fixed":
-        outputFormat = formatPolicy.format;
-        break;
-      case "allow":
-        outputFormat = (formatPolicy.allowed as readonly string[]).includes(sourceFormat)
-          ? sourceFormat
-          : formatPolicy.fallback;
-        break;
-    }
+    // Use Web Worker in browser, direct execution in non-browser environments (bun test)
+    const isBrowser = typeof globalThis.window !== "undefined";
+    const response = isBrowser
+      ? await this.runInWorker(request, timeout)
+      : await import("./pipeline").then(m => m.executePipeline(request));
 
-    // 4. Decode
-    const imageData = await decodeImage(buffer, sourceFormat);
-    const srcPixels = imageData.width * imageData.height;
+    return new Blob([response.buffer], { type: response.mime });
+  }
 
-    // 5. Compute resize dimensions
-    let resized = imageData;
-    let pixelRatio = 1;
+  private runInWorker(
+    request: WorkerRequest,
+    timeout: number | undefined
+  ): Promise<WorkerResultMessage> {
+    const worker = new Worker(new URL("./worker.mjs", import.meta.url), { type: "module" });
 
-    if (dims) {
-      const target = computeDimensions(imageData.width, imageData.height, dims);
-      resized = resizeImageData(imageData, target);
-      pixelRatio = (resized.width * resized.height) / srcPixels;
-    }
+    return new Promise<WorkerResultMessage>((resolve, reject) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const cleanup = () => {
+        if (timer) {
+          clearTimeout(timer);
+        }
+        worker.terminate();
+      };
 
-    // 6. Determine encoder quality
-    //    If dimension reduction already brought pixel count below the maxQuality threshold,
-    //    the quality constraint is considered satisfied — encode at full quality.
-    let quality = 100;
-    if (maxQuality != null) {
-      const threshold = maxQuality / 100;
-      quality = pixelRatio <= threshold ? 100 : maxQuality;
-    }
+      if (timeout != null) {
+        timer = setTimeout(() => {
+          cleanup();
+          reject(new SinterCodecError(`Compression timed out after ${timeout}s.`));
+        }, timeout * 1000);
+      }
 
-    // 7. Encode
-    let encoded: ArrayBuffer;
+      worker.onmessage = (e: MessageEvent<WorkerResultMessage | WorkerErrorMessage>) => {
+        const msg = e.data;
+        if (msg.type === "error") {
+          const ErrorClass =
+            msg.errorType === "validation"
+              ? SinterValidationError
+              : msg.errorType === "codec"
+                ? SinterCodecError
+                : SinterCodecError;
+          cleanup();
+          reject(new ErrorClass(msg.message));
+        } else {
+          cleanup();
+          resolve(msg);
+        }
+      };
 
-    if (sizeLimit != null) {
-      // Size-constrained path: quality binary search + dimension reduction
-      encoded = await encodeFitSize(resized, outputFormat, sizeLimit, quality, codecOpts);
-    } else {
-      encoded = await encodeImage(resized, outputFormat, { quality, codecOpts });
-    }
+      worker.onerror = e => {
+        cleanup();
+        reject(new SinterCodecError(`Worker error: ${e.message}`));
+      };
 
-    // 8. Never return a result larger than the input when no format conversion or actual resize
-    const actuallyResized = pixelRatio < 1;
-    if (
-      outputFormat === sourceFormat &&
-      !actuallyResized &&
-      sizeLimit == null &&
-      encoded.byteLength > buffer.byteLength
-    ) {
-      return new Blob([buffer], { type: MIME[outputFormat] });
-    }
-
-    return new Blob([encoded], { type: MIME[outputFormat] });
+      worker.postMessage(request, [request.buffer]);
+    });
   }
 }
