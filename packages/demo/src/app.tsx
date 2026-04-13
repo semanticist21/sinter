@@ -1,6 +1,6 @@
-import { type CodecMap, compress, type ImageFormat } from "@sinter/module";
 import { Download, ImageDown, Upload } from "lucide-react";
 import { type ChangeEvent, type DragEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type CodecMap, compress, type ImageFormat } from "sinter-js";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

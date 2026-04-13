@@ -12,7 +12,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@sinter/module": fileURLToPath(new URL("../module/dist/index.mjs", import.meta.url)),
+      "sinter-js": fileURLToPath(new URL("../module/dist/index.mjs", import.meta.url)),
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
     extensions: [".tsx", ".ts", ".jsx", ".js"],
