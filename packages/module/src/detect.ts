@@ -40,7 +40,27 @@ function isAvif(data: Uint8Array): boolean {
 
   // major brand at bytes 8-11
   const brand = String.fromCharCode(data[8], data[9], data[10], data[11]);
-  return brand === "avif" || brand === "avis" || brand === "mif1";
+  if (brand === "avif" || brand === "avis") {
+    return true;
+  }
+
+  // mif1 is shared by AVIF and HEIF/HEIC — check compatible brands for "avif" or "av01"
+  // ftyp box layout: [size(4)][ftyp(4)][major(4)][minor(4)][compat brands(4 each)...]
+  if (brand === "mif1") {
+    for (let offset = 16; offset + 4 <= boxSize && offset + 4 <= data.length; offset += 4) {
+      const cb = String.fromCharCode(
+        data[offset],
+        data[offset + 1],
+        data[offset + 2],
+        data[offset + 3]
+      );
+      if (cb === "avif" || cb === "av01") {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 export function detectFormat(data: Uint8Array): ImageFormat {

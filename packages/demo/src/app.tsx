@@ -282,6 +282,12 @@ export function App() {
   }, []);
 
   const handleFile = useCallback((f: File) => {
+    // 파일 교체 시 이전 blob URL 즉시 해제
+    if (resultRef.current) {
+      URL.revokeObjectURL(resultRef.current.original.url);
+      URL.revokeObjectURL(resultRef.current.compressed.url);
+      resultRef.current = null;
+    }
     setFile(f);
     setResult(null);
     setError(null);
@@ -337,6 +343,8 @@ export function App() {
     if (resultRef.current) {
       URL.revokeObjectURL(resultRef.current.original.url);
       URL.revokeObjectURL(resultRef.current.compressed.url);
+      resultRef.current = null;
+      setResult(null);
     }
 
     try {
@@ -405,6 +413,9 @@ export function App() {
       resultRef.current = res;
       setResult(res);
     } catch (err) {
+      // 실패 시 revoke된 URL을 결과 카드가 물고 있지 않도록 정리
+      resultRef.current = null;
+      setResult(null);
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setProcessing(false);
@@ -651,21 +662,23 @@ export function App() {
 
           {/* Other options row */}
           <div className="grid grid-cols-2 gap-x-5 gap-y-5 sm:grid-cols-3">
-            {/* Quality */}
-            <div className="space-y-2">
-              <Label>
-                Quality <span className="font-normal text-muted-foreground">{quality}</span>
-              </Label>
-              <div className="flex h-9 items-center">
-                <Slider
-                  min={1}
-                  max={100}
-                  step={1}
-                  value={[quality]}
-                  onValueChange={([v]) => setQuality(v)}
-                />
+            {/* Quality — lossless 포맷(PNG/BMP)만 출력될 때는 숨김 */}
+            {!activeFormats.every(f => f === "png" || f === "bmp") && (
+              <div className="space-y-2">
+                <Label>
+                  Quality <span className="font-normal text-muted-foreground">{quality}</span>
+                </Label>
+                <div className="flex h-9 items-center">
+                  <Slider
+                    min={1}
+                    max={100}
+                    step={1}
+                    value={[quality]}
+                    onValueChange={([v]) => setQuality(v)}
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Dimensions */}
             <div className="space-y-2">
