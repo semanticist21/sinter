@@ -4,7 +4,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { detectFormat } from "../src/detect";
-import { compress } from "../src/index";
+import { sinter } from "../src/index";
 import { computeDimensions } from "../src/pipeline";
 
 // ---------------------------------------------------------------------------
@@ -41,6 +41,10 @@ describe("detectFormat", () => {
 
   test("detects AVIF", () => {
     expect(detectFormat(loadBytes("test.avif"))).toBe("avif");
+  });
+
+  test("detects BMP", () => {
+    expect(detectFormat(loadBytes("test.bmp"))).toBe("bmp");
   });
 
   test("throws on too-small buffer", () => {
@@ -95,14 +99,13 @@ describe("computeDimensions", () => {
 // Validation
 // ---------------------------------------------------------------------------
 
-describe("compress() validation", () => {
-  test("throws on empty file", () => {
-    expect(() => compress(new File([], "empty.jpg"))).toThrow("empty");
+describe("sinter() validation", () => {
+  test("throws on empty file", async () => {
+    await expect(sinter().keepFormat().compress(new File([], "empty.jpg"))).rejects.toThrow("비어");
   });
 
-  test("returns format stage for valid file", () => {
-    const file = loadAsset("test.jpeg");
-    const stage = compress(file);
+  test("returns format stage", () => {
+    const stage = sinter();
     expect(stage).toBeDefined();
     expect(typeof stage.keepFormat).toBe("function");
     expect(typeof stage.toFormat).toBe("function");
@@ -111,27 +114,25 @@ describe("compress() validation", () => {
 });
 
 describe("builder validation", () => {
-  const file = loadAsset("test.jpeg");
-
   test("maxQuality rejects out of range", () => {
-    expect(() => compress(file).keepFormat().maxQuality(0)).toThrow();
-    expect(() => compress(file).keepFormat().maxQuality(101)).toThrow();
+    expect(() => sinter().keepFormat().maxQuality(0)).toThrow();
+    expect(() => sinter().keepFormat().maxQuality(101)).toThrow();
   });
 
   test("maxQuality accepts valid values", () => {
-    expect(() => compress(file).keepFormat().maxQuality(1)).not.toThrow();
-    expect(() => compress(file).keepFormat().maxQuality(100)).not.toThrow();
+    expect(() => sinter().keepFormat().maxQuality(1)).not.toThrow();
+    expect(() => sinter().keepFormat().maxQuality(100)).not.toThrow();
   });
 
   test("dimensions rejects invalid values", () => {
-    expect(() => compress(file).keepFormat().dimensions({ width: -1 })).toThrow();
-    expect(() => compress(file).keepFormat().dimensions({ width: 0 })).toThrow();
-    expect(() => compress(file).keepFormat().dimensions({})).toThrow();
+    expect(() => sinter().keepFormat().dimensions({ width: -1 })).toThrow();
+    expect(() => sinter().keepFormat().dimensions({ width: 0 })).toThrow();
+    expect(() => sinter().keepFormat().dimensions({})).toThrow();
   });
 
   test("size rejects non-positive", () => {
-    expect(() => compress(file).keepFormat().size(0, "KB")).toThrow();
-    expect(() => compress(file).keepFormat().size(-1, "MB")).toThrow();
+    expect(() => sinter().keepFormat().size(0, "KB")).toThrow();
+    expect(() => sinter().keepFormat().size(-1, "MB")).toThrow();
   });
 });
 
@@ -144,7 +145,7 @@ describe("JPEG", () => {
     const file = loadAsset("test.jpeg");
     const original = file.size;
 
-    const blob = await compress(file).keepFormat().maxQuality(50).run();
+    const blob = await sinter().keepFormat().maxQuality(50).compress(file);
     expect(blob.size).toBeLessThan(original);
     expect(blob.type).toBe("image/jpeg");
   });
@@ -152,15 +153,15 @@ describe("JPEG", () => {
   test("keepFormat — lower quality = smaller file", async () => {
     const file = loadAsset("test.jpeg");
 
-    const q80 = await compress(file).keepFormat().maxQuality(80).run();
-    const q20 = await compress(file).keepFormat().maxQuality(20).run();
+    const q80 = await sinter().keepFormat().maxQuality(80).compress(file);
+    const q20 = await sinter().keepFormat().maxQuality(20).compress(file);
     expect(q20.size).toBeLessThan(q80.size);
   });
 
   test("keepFormat — quality 1 produces very small file", async () => {
     const file = loadAsset("test.jpeg");
 
-    const blob = await compress(file).keepFormat().maxQuality(1).run();
+    const blob = await sinter().keepFormat().maxQuality(1).compress(file);
     expect(blob.size).toBeLessThan(file.size * 0.1); // less than 10% of original
   });
 
@@ -169,11 +170,11 @@ describe("JPEG", () => {
     async () => {
       const file = loadAsset("test.jpeg");
 
-      const blob = await compress(file)
+      const blob = await sinter()
         .keepFormat()
         .dimensions({ width: 800 })
         .size(100, "KB")
-        .run();
+        .compress(file);
       expect(blob.size).toBeLessThanOrEqual(100 * 1024);
     },
     { timeout: 30_000 }
@@ -182,28 +183,28 @@ describe("JPEG", () => {
   test("dimensions reduce output size", async () => {
     const file = loadAsset("test.jpeg");
 
-    const blob = await compress(file).keepFormat().dimensions({ width: 200 }).run();
+    const blob = await sinter().keepFormat().dimensions({ width: 200 }).compress(file);
     expect(blob.size).toBeLessThan(file.size);
   });
 
   test("toFormat(webp) converts to WebP", async () => {
     const file = loadAsset("test.jpeg");
 
-    const blob = await compress(file).toFormat("webp").run();
+    const blob = await sinter().toFormat("webp").compress(file);
     expect(blob.type).toBe("image/webp");
   });
 
   test("toFormat(avif) converts to AVIF", async () => {
     const file = loadAsset("test.jpeg");
 
-    const blob = await compress(file).toFormat("avif").run();
+    const blob = await sinter().toFormat("avif").compress(file);
     expect(blob.type).toBe("image/avif");
   });
 
   test("toFormat(png) converts to PNG", async () => {
     const file = loadAsset("test.jpeg");
     // Use small dimensions to avoid massive PNG
-    const blob = await compress(file).toFormat("png").dimensions({ width: 100 }).run();
+    const blob = await sinter().toFormat("png").dimensions({ width: 100 }).compress(file);
     expect(blob.type).toBe("image/png");
   });
 });
@@ -216,7 +217,7 @@ describe("PNG", () => {
   test("keepFormat — result is not larger than original", async () => {
     const file = loadAsset("test.png");
 
-    const blob = await compress(file).keepFormat().run();
+    const blob = await sinter().keepFormat().compress(file);
     // Should return original bytes when re-encode inflates
     expect(blob.size).toBeLessThanOrEqual(file.size);
   });
@@ -224,7 +225,7 @@ describe("PNG", () => {
   test("size constraint — reduces dimensions to meet target", async () => {
     const file = loadAsset("test.png");
 
-    const blob = await compress(file).keepFormat().size(100, "KB").run();
+    const blob = await sinter().keepFormat().size(100, "KB").compress(file);
     expect(blob.size).toBeLessThanOrEqual(100 * 1024);
     expect(blob.type).toBe("image/png");
   });
@@ -232,7 +233,7 @@ describe("PNG", () => {
   test("toFormat(webp) — converts PNG to WebP and reduces size", async () => {
     const file = loadAsset("test.png");
 
-    const blob = await compress(file).toFormat("webp").maxQuality(80).run();
+    const blob = await sinter().toFormat("webp").maxQuality(80).compress(file);
     expect(blob.type).toBe("image/webp");
     expect(blob.size).toBeLessThan(file.size);
   });
@@ -240,7 +241,7 @@ describe("PNG", () => {
   test("toFormat(jpeg) — converts PNG to JPEG", async () => {
     const file = loadAsset("test.png");
 
-    const blob = await compress(file).toFormat("jpeg").maxQuality(80).run();
+    const blob = await sinter().toFormat("jpeg").maxQuality(80).compress(file);
     expect(blob.type).toBe("image/jpeg");
     expect(blob.size).toBeLessThan(file.size);
   });
@@ -248,7 +249,7 @@ describe("PNG", () => {
   test("dimensions — reduces to target width", async () => {
     const file = loadAsset("test.png");
 
-    const blob = await compress(file).keepFormat().dimensions({ width: 100 }).run();
+    const blob = await sinter().keepFormat().dimensions({ width: 100 }).compress(file);
     expect(blob.size).toBeLessThan(file.size);
   });
 });
@@ -261,7 +262,7 @@ describe("WebP", () => {
   test("keepFormat — quality reduces file size", async () => {
     const file = loadAsset("test.webp");
 
-    const blob = await compress(file).keepFormat().maxQuality(50).run();
+    const blob = await sinter().keepFormat().maxQuality(50).compress(file);
     expect(blob.type).toBe("image/webp");
     expect(blob.size).toBeLessThan(file.size);
   });
@@ -269,8 +270,8 @@ describe("WebP", () => {
   test("keepFormat — lower quality = smaller file", async () => {
     const file = loadAsset("test.webp");
 
-    const q80 = await compress(file).keepFormat().maxQuality(80).run();
-    const q20 = await compress(file).keepFormat().maxQuality(20).run();
+    const q80 = await sinter().keepFormat().maxQuality(80).compress(file);
+    const q20 = await sinter().keepFormat().maxQuality(20).compress(file);
     expect(q20.size).toBeLessThan(q80.size);
   });
 
@@ -279,11 +280,11 @@ describe("WebP", () => {
     async () => {
       const file = loadAsset("test.webp");
 
-      const blob = await compress(file)
+      const blob = await sinter()
         .keepFormat()
         .dimensions({ width: 800 })
         .size(200, "KB")
-        .run();
+        .compress(file);
       expect(blob.size).toBeLessThanOrEqual(200 * 1024);
     },
     { timeout: 30_000 }
@@ -292,21 +293,21 @@ describe("WebP", () => {
   test("toFormat(jpeg) — converts to JPEG", async () => {
     const file = loadAsset("test.webp");
 
-    const blob = await compress(file).toFormat("jpeg").maxQuality(80).run();
+    const blob = await sinter().toFormat("jpeg").maxQuality(80).compress(file);
     expect(blob.type).toBe("image/jpeg");
   });
 
   test("toFormat(avif) — converts to AVIF", async () => {
     const file = loadAsset("test.webp");
 
-    const blob = await compress(file).toFormat("avif").maxQuality(50).run();
+    const blob = await sinter().toFormat("avif").maxQuality(50).compress(file);
     expect(blob.type).toBe("image/avif");
   });
 
   test("dimensions — only width", async () => {
     const file = loadAsset("test.webp");
 
-    const blob = await compress(file).keepFormat().dimensions({ width: 300 }).run();
+    const blob = await sinter().keepFormat().dimensions({ width: 300 }).compress(file);
     expect(blob.size).toBeLessThan(file.size);
   });
 });
@@ -319,7 +320,7 @@ describe("AVIF", () => {
   test("keepFormat — quality reduces file size", async () => {
     const file = loadAsset("test.avif");
 
-    const blob = await compress(file).keepFormat().maxQuality(30).run();
+    const blob = await sinter().keepFormat().maxQuality(30).compress(file);
     expect(blob.type).toBe("image/avif");
     expect(blob.size).toBeLessThan(file.size);
   });
@@ -327,14 +328,14 @@ describe("AVIF", () => {
   test("toFormat(webp) — converts to WebP", async () => {
     const file = loadAsset("test.avif");
 
-    const blob = await compress(file).toFormat("webp").maxQuality(50).run();
+    const blob = await sinter().toFormat("webp").maxQuality(50).compress(file);
     expect(blob.type).toBe("image/webp");
   });
 
   test("toFormat(jpeg) — converts to JPEG", async () => {
     const file = loadAsset("test.avif");
 
-    const blob = await compress(file).toFormat("jpeg").maxQuality(50).run();
+    const blob = await sinter().toFormat("jpeg").maxQuality(50).compress(file);
     expect(blob.type).toBe("image/jpeg");
   });
 
@@ -343,11 +344,11 @@ describe("AVIF", () => {
     async () => {
       const file = loadAsset("test.avif");
 
-      const blob = await compress(file)
+      const blob = await sinter()
         .keepFormat()
         .dimensions({ width: 800 })
         .size(500, "KB")
-        .run();
+        .compress(file);
       expect(blob.size).toBeLessThanOrEqual(500 * 1024);
     },
     { timeout: 60_000 }
@@ -362,21 +363,27 @@ describe("allowFormats", () => {
   test("keeps format when in allowed list", async () => {
     const file = loadAsset("test.webp");
 
-    const blob = await compress(file).allowFormats(["webp", "avif"], "jpeg").maxQuality(50).run();
+    const blob = await sinter()
+      .allowFormats(["webp", "avif"], "jpeg")
+      .maxQuality(50)
+      .compress(file);
     expect(blob.type).toBe("image/webp"); // webp is in allowed list
   });
 
   test("falls back when format not in allowed list", async () => {
     const file = loadAsset("test.png");
 
-    const blob = await compress(file).allowFormats(["webp", "avif"], "webp").maxQuality(50).run();
+    const blob = await sinter()
+      .allowFormats(["webp", "avif"], "webp")
+      .maxQuality(50)
+      .compress(file);
     expect(blob.type).toBe("image/webp"); // png not in allowed, falls back to webp
   });
 
   test("jpeg falls back when only webp/avif allowed", async () => {
     const file = loadAsset("test.jpeg");
 
-    const blob = await compress(file).allowFormats(["webp"], "webp").maxQuality(80).run();
+    const blob = await sinter().allowFormats(["webp"], "webp").maxQuality(80).compress(file);
     expect(blob.type).toBe("image/webp"); // jpeg not in [webp], falls back to webp
   });
 });
@@ -389,11 +396,11 @@ describe("combined constraints", () => {
   test("quality + dimensions", async () => {
     const file = loadAsset("test.jpeg");
 
-    const blob = await compress(file)
+    const blob = await sinter()
       .keepFormat()
       .maxQuality(60)
       .dimensions({ width: 500, height: 500 })
-      .run();
+      .compress(file);
 
     expect(blob.size).toBeLessThan(file.size);
     expect(blob.type).toBe("image/jpeg");
@@ -402,14 +409,18 @@ describe("combined constraints", () => {
   test("quality + size limit", async () => {
     const file = loadAsset("test.jpeg");
 
-    const blob = await compress(file).keepFormat().maxQuality(80).size(50, "KB").run();
+    const blob = await sinter().keepFormat().maxQuality(80).size(50, "KB").compress(file);
     expect(blob.size).toBeLessThanOrEqual(50 * 1024);
   });
 
   test("dimensions + size limit", async () => {
     const file = loadAsset("test.webp");
 
-    const blob = await compress(file).keepFormat().dimensions({ width: 800 }).size(100, "KB").run();
+    const blob = await sinter()
+      .keepFormat()
+      .dimensions({ width: 800 })
+      .size(100, "KB")
+      .compress(file);
 
     expect(blob.size).toBeLessThanOrEqual(100 * 1024);
   });
@@ -417,12 +428,12 @@ describe("combined constraints", () => {
   test("format conversion + quality + dimensions + size", async () => {
     const file = loadAsset("test.png");
 
-    const blob = await compress(file)
+    const blob = await sinter()
       .toFormat("webp")
       .maxQuality(70)
       .dimensions({ width: 400 })
       .size(30, "KB")
-      .run();
+      .compress(file);
 
     expect(blob.type).toBe("image/webp");
     expect(blob.size).toBeLessThanOrEqual(30 * 1024);
@@ -433,11 +444,81 @@ describe("combined constraints", () => {
     async () => {
       const file = loadAsset("test.jpeg");
 
-      const blob = await compress(file).keepFormat().dimensions({ width: 800 }).size(5, "KB").run();
+      const blob = await sinter()
+        .keepFormat()
+        .dimensions({ width: 800 })
+        .size(5, "KB")
+        .compress(file);
       expect(blob.size).toBeLessThanOrEqual(5 * 1024);
     },
     { timeout: 30_000 }
   );
+});
+
+// ---------------------------------------------------------------------------
+// BMP
+// ---------------------------------------------------------------------------
+
+describe("BMP", () => {
+  test("keepFormat — BMP 출력 타입 확인", async () => {
+    const file = loadAsset("test.bmp");
+
+    const blob = await sinter().keepFormat().compress(file);
+    expect(blob.type).toBe("image/bmp");
+    expect(blob.size).toBeGreaterThan(0);
+  });
+
+  test("keepFormat — 인플레이션 가드 (재인코딩이 원본보다 크면 원본 반환)", async () => {
+    const file = loadAsset("test.bmp");
+
+    const blob = await sinter().keepFormat().compress(file);
+    expect(blob.size).toBeLessThanOrEqual(file.size);
+  });
+
+  test("toFormat(jpeg) — BMP → JPEG 변환", async () => {
+    const file = loadAsset("test.bmp");
+
+    const blob = await sinter().toFormat("jpeg").maxQuality(80).compress(file);
+    expect(blob.type).toBe("image/jpeg");
+    expect(blob.size).toBeGreaterThan(0);
+  });
+
+  test("toFormat(webp) — BMP → WebP 변환", async () => {
+    const file = loadAsset("test.bmp");
+
+    const blob = await sinter().toFormat("webp").maxQuality(80).compress(file);
+    expect(blob.type).toBe("image/webp");
+    expect(blob.size).toBeGreaterThan(0);
+  });
+
+  test("toFormat(png) — BMP → PNG 변환", async () => {
+    const file = loadAsset("test.bmp");
+
+    const blob = await sinter().toFormat("png").compress(file);
+    expect(blob.type).toBe("image/png");
+    expect(blob.size).toBeGreaterThan(0);
+  });
+
+  test("toFormat(bmp) — JPEG → BMP 변환", async () => {
+    const file = loadAsset("test.jpeg");
+
+    const blob = await sinter().toFormat("bmp").dimensions({ width: 100 }).compress(file);
+    expect(blob.type).toBe("image/bmp");
+    expect(blob.size).toBeGreaterThan(0);
+  });
+
+  test("size constraint — BMP는 dimension reduction만 적용", async () => {
+    const file = loadAsset("test.jpeg");
+
+    // JPEG를 BMP로 변환하면 사이즈 커지므로, 작은 크기로 dimension 제한
+    const blob = await sinter()
+      .toFormat("bmp")
+      .dimensions({ width: 10 })
+      .size(10, "KB")
+      .compress(file);
+    expect(blob.type).toBe("image/bmp");
+    expect(blob.size).toBeLessThanOrEqual(10 * 1024);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -470,11 +551,11 @@ describe("cross-format conversion", () => {
         async () => {
           const file = loadAsset(files[src]);
 
-          const blob = await compress(file)
+          const blob = await sinter()
             .toFormat(dst)
             .maxQuality(50)
             .dimensions({ width: 200 })
-            .run();
+            .compress(file);
 
           expect(blob.type).toBe(mimes[dst]);
           expect(blob.size).toBeGreaterThan(0);
@@ -493,18 +574,18 @@ describe("codecOptions", () => {
   test("webp lossless produces different output than lossy", async () => {
     const file = loadAsset("test.jpeg");
 
-    const lossy = await compress(file)
+    const lossy = await sinter()
       .toFormat("webp")
       .codecOptions({ webp: { lossless: false } })
       .maxQuality(80)
       .dimensions({ width: 200 })
-      .run();
+      .compress(file);
 
-    const lossless = await compress(file)
+    const lossless = await sinter()
       .toFormat("webp")
       .codecOptions({ webp: { lossless: true } })
       .dimensions({ width: 200 })
-      .run();
+      .compress(file);
 
     // Lossless and lossy should produce different sizes
     expect(lossy.size).not.toBe(lossless.size);
@@ -516,12 +597,12 @@ describe("codecOptions", () => {
     const file = loadAsset("test.jpeg");
 
     // Should not throw
-    const blob = await compress(file)
+    const blob = await sinter()
       .toFormat("avif")
       .codecOptions({ avif: { speed: 8 } })
       .maxQuality(50)
       .dimensions({ width: 200 })
-      .run();
+      .compress(file);
 
     expect(blob.type).toBe("image/avif");
     expect(blob.size).toBeGreaterThan(0);
@@ -542,16 +623,16 @@ describe("quality-vs-dimensions interaction", () => {
 
     // maxQuality(80) + dimensions reducing to ~25% of pixels (50% each axis)
     // pixelRatio ~0.25 <= 0.8 threshold → quality should be 100 (not 80)
-    const withDims = await compress(file)
+    const withDims = await sinter()
       .keepFormat()
       .maxQuality(80)
       .dimensions({ width: 200 })
-      .run();
+      .compress(file);
 
     // Same dimensions but quality forced to 80 manually (no heuristic skip)
     // The heuristic means withDims should be encoded at q100, so it should be LARGER
     // than a separate encode of the same small size at q80
-    const atQ80 = await compress(file).keepFormat().maxQuality(80).run();
+    const atQ80 = await sinter().keepFormat().maxQuality(80).compress(file);
 
     // Both should succeed
     expect(withDims.size).toBeGreaterThan(0);
@@ -569,7 +650,7 @@ describe("default behavior", () => {
   test("keepFormat with no constraints re-encodes at full quality", async () => {
     const file = loadAsset("test.jpeg");
 
-    const blob = await compress(file).keepFormat().run();
+    const blob = await sinter().keepFormat().compress(file);
     expect(blob.type).toBe("image/jpeg");
     expect(blob.size).toBeGreaterThan(0);
   });
@@ -577,7 +658,7 @@ describe("default behavior", () => {
   test("PNG keepFormat with no constraints does not inflate", async () => {
     const file = loadAsset("test.png");
 
-    const blob = await compress(file).keepFormat().run();
+    const blob = await sinter().keepFormat().compress(file);
     expect(blob.size).toBeLessThanOrEqual(file.size);
   });
 });
@@ -590,7 +671,7 @@ describe("output dimensions", () => {
   test("dimensions(width: 200) produces correctly sized output", async () => {
     const file = loadAsset("test.jpeg");
 
-    const blob = await compress(file).keepFormat().dimensions({ width: 200 }).run();
+    const blob = await sinter().keepFormat().dimensions({ width: 200 }).compress(file);
     const url = URL.createObjectURL(blob);
 
     // Decode the output to check dimensions
@@ -607,7 +688,7 @@ describe("output dimensions", () => {
   test("dimensions(height: 100) produces correctly sized output", async () => {
     const file = loadAsset("test.jpeg");
 
-    const blob = await compress(file).keepFormat().dimensions({ height: 100 }).run();
+    const blob = await sinter().keepFormat().dimensions({ height: 100 }).compress(file);
 
     const buf = await blob.arrayBuffer();
     const { default: decode } = await import("@jsquash/jpeg/decode.js");

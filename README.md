@@ -37,21 +37,33 @@ npm install sinter-js
 ## Quick Start
 
 ```ts
-import { compress } from "sinter-js";
+import { sinter } from "sinter-js";
 
-const blob = await compress(file)
+const blob = await sinter()
   .toFormat("webp")
   .maxQuality(80)
   .dimensions({ width: 1200 })
-  .run();
+  .compress(file);
+```
+
+Pipeline settings can be stored and reused across multiple files:
+
+```ts
+const pipeline = sinter()
+  .toFormat("webp")
+  .maxQuality(80)
+  .dimensions({ width: 1200 });
+
+const blob1 = await pipeline.compress(file1);
+const blob2 = await pipeline.compress(file2);
 ```
 
 ## API
 
-Everything starts with `compress(file)`, then flows through stages:
+Everything starts with `sinter()`, then flows through stages:
 
 ```
-compress(file: File)
+sinter()
   .keepFormat()                              // keep the original format
   .toFormat("webp")                          // convert to a specific format
   .allowFormats(["avif", "webp"], "webp")    // keep if allowed, otherwise fallback
@@ -63,7 +75,7 @@ compress(file: File)
   .size(1, "MB")                             // file size target
   .timeout(30)                               // timeout in seconds
 
-  .run()                                     // execute, returns Promise<Blob>
+  .compress(file: File)                      // execute, returns Promise<Blob>
 ```
 
 Only the format stage (`keepFormat`, `toFormat`, or `allowFormats`) is required. Everything after it — `codecOptions`, `maxQuality`, `dimensions`, `size`, `timeout` — is optional. Chain what you need, skip what you don't.
@@ -81,10 +93,10 @@ Each stage returns a narrowed type. **Calling the same method twice is a compile
 ### Codec Options
 
 ```ts
-compress(file)
+sinter()
   .toFormat("avif")
   .codecOptions({ avif: { speed: 4 } })
-  .run();
+  .compress(file);
 ```
 
 | Format | Options |
@@ -123,6 +135,8 @@ import { SinterValidationError, SinterCodecError } from "sinter-js";
 5. **Fit size** — if `size()` is set, binary-search quality then reduce dimensions until target is met
 
 Single decode-encode pass. No generation loss from repeated re-encoding.
+
+**Inflation guard** — if the output format matches the input, no resize was applied, and no size target was set, Sinter returns the original bytes whenever re-encoding would produce a larger file.
 
 All heavy lifting runs in a **Web Worker**, so the main thread stays responsive.
 

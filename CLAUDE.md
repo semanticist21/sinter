@@ -62,7 +62,7 @@ bun --filter @sinter/demo dev        # Start only the demo dev server
 
 ### Entry Point and Chaining Shape
 ```
-compress(file: File)
+sinter()
   .keepFormat() | .toFormat(format) | .allowFormats(allowed, to)
   .codecOptions({ webp: { lossless: false } }) // Format-specific codec options
   .maxQuality(80)       // Quality ceiling when no size constraint is set
@@ -71,11 +71,11 @@ compress(file: File)
   .dimensions({ height: 200 })             // Resize by height only
   .dimensions({ width: 300, height: 200 }) // Resize width and height together
   .timeout(30)          // Timeout in seconds (rejects if exceeded)
-  .run()                // Terminal method, returns Promise<Blob>
+  .compress(file: File) // Terminal method, returns Promise<Blob>
 ```
 
 ### Key Decisions
-- **Terminal method**: `.run()` to avoid clashing with the `compress()` entry point
+- **Terminal method**: `.compress(file)` — the library name `sinter()` is the entry point, and the terminal action is `compress(file)`
 - **Compression execution**: Single-pass to avoid generation loss — decode -> resize -> encode once
 - **Pipeline**: Record call order in a `pipeline[]` array, then translate it into a single pass with @jsquash at `run()`
 - **Codec options stage**: `codecOptions()` holds format-specific encoder settings after the output format policy is chosen

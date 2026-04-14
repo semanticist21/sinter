@@ -5,6 +5,7 @@ const JPEG_MAGIC = [0xff, 0xd8, 0xff];
 const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const RIFF_MAGIC = [0x52, 0x49, 0x46, 0x46]; // "RIFF"
 const WEBP_MAGIC = [0x57, 0x45, 0x42, 0x50]; // "WEBP"
+const BMP_MAGIC = [0x42, 0x4d]; // "BM"
 
 function matchBytes(data: Uint8Array, expected: number[], offset = 0): boolean {
   if (data.length < offset + expected.length) {
@@ -59,8 +60,11 @@ export function detectFormat(data: Uint8Array): ImageFormat {
   if (isAvif(data)) {
     return "avif";
   }
+  if (matchBytes(data, BMP_MAGIC)) {
+    return "bmp";
+  }
 
   throw new SinterValidationError(
-    "Unsupported or invalid image format. Supported formats: JPEG, PNG, WebP, AVIF."
+    "Unsupported or invalid image format. Supported formats: JPEG, PNG, WebP, AVIF, BMP."
   );
 }

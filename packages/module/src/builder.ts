@@ -6,6 +6,16 @@ import type {
   WorkerResultMessage,
 } from "./types";
 
+// run()에 전달되는 파일 유효성 검사
+function validateFile(file: File): void {
+  if (!(file instanceof File)) {
+    throw new SinterValidationError("run() expects a File instance.");
+  }
+  if (file.size === 0) {
+    throw new SinterValidationError("파일이 비어 있습니다.");
+  }
+}
+
 export class SinterBuilder {
   /** @internal */
   protected readonly _config: PipelineConfig;
@@ -66,9 +76,10 @@ export class SinterBuilder {
     return this;
   }
 
-  /** Executes the configured pipeline and resolves the compressed image blob. */
-  async run(): Promise<Blob> {
-    const { file, formatPolicy, codecOpts, maxQuality, dims, sizeLimit, timeout } = this._config;
+  /** 파이프라인을 실행하고 압축된 이미지 Blob을 반환한다. */
+  async compress(file: File): Promise<Blob> {
+    validateFile(file);
+    const { formatPolicy, codecOpts, maxQuality, dims, sizeLimit, timeout } = this._config;
 
     const buffer = await file.arrayBuffer();
 

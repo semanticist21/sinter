@@ -15,6 +15,10 @@
     "update": "bun update"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.10"
+    "@biomejs/biome": "^2.4.10",
+    "@types/upng-js": "^2.1.5"
+  },
+  "dependencies": {
+    "upng-js": "^2.1.0"
   }
 }

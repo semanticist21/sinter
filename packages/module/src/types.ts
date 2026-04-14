@@ -1,5 +1,5 @@
 // Supported image formats aligned with the current codec scope
-export type ImageFormat = "webp" | "avif" | "jpeg" | "png";
+export type ImageFormat = "webp" | "avif" | "jpeg" | "png" | "bmp";
 
 // Codec option mapping by format
 export type CodecMap = {
@@ -7,6 +7,7 @@ export type CodecMap = {
   webp: { lossless?: boolean };
   jpeg: { progressive?: boolean };
   png: Record<string, never>;
+  bmp: Record<string, never>; // 비압축 포맷 — 인코더 옵션 없음
 };
 
 export type CodecOptions<F extends ImageFormat = ImageFormat> = Partial<{
@@ -21,7 +22,6 @@ export type FormatPolicy =
 
 // Internal pipeline configuration accumulated through the fluent chain
 export interface PipelineConfig {
-  file: File;
   formatPolicy: FormatPolicy;
   codecOpts: Partial<CodecMap>;
   maxQuality?: number;
@@ -53,9 +53,8 @@ export interface WorkerErrorMessage {
   errorType: "validation" | "codec" | "unknown";
 }
 
-export function createConfig(file: File): PipelineConfig {
+export function createConfig(): PipelineConfig {
   return {
-    file,
     formatPolicy: { type: "keep" },
     codecOpts: {},
   };

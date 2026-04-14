@@ -1,6 +1,6 @@
 import { Download, ImageDown, Upload } from "lucide-react";
 import { type ChangeEvent, type DragEvent, useCallback, useEffect, useRef, useState } from "react";
-import { type CodecMap, compress, type ImageFormat } from "sinter-js";
+import { type CodecMap, type ImageFormat, sinter } from "sinter-js";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,7 +36,7 @@ interface Result {
 type FormatMode = "keep" | "to" | "allow";
 type OptionalBoolean = boolean | null;
 
-const FORMAT_OPTIONS: ImageFormat[] = ["webp", "avif", "jpeg", "png"];
+const FORMAT_OPTIONS: ImageFormat[] = ["webp", "avif", "jpeg", "png", "bmp"];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -69,6 +69,7 @@ function detectFormatFromName(name: string): string {
     png: "PNG",
     webp: "WebP",
     avif: "AVIF",
+    bmp: "BMP",
   };
   return map[ext] ?? ext.toUpperCase();
 }
@@ -79,6 +80,7 @@ function mimeToLabel(mime: string): string {
     "image/png": "PNG",
     "image/webp": "WebP",
     "image/avif": "AVIF",
+    "image/bmp": "BMP",
   };
   return map[mime] ?? mime;
 }
@@ -88,6 +90,7 @@ const FORMAT_LABEL: Record<ImageFormat, string> = {
   avif: "AVIF",
   jpeg: "JPEG",
   png: "PNG",
+  bmp: "BMP",
 };
 
 function fileToFormat(file: File | null): ImageFormat | null {
@@ -100,6 +103,7 @@ function fileToFormat(file: File | null): ImageFormat | null {
     "image/avif": "avif",
     "image/jpeg": "jpeg",
     "image/png": "png",
+    "image/bmp": "bmp",
   };
 
   if (file.type in fromMime) {
@@ -110,7 +114,7 @@ function fileToFormat(file: File | null): ImageFormat | null {
   if (ext === "jpg" || ext === "jpeg") {
     return "jpeg";
   }
-  if (ext === "png" || ext === "webp" || ext === "avif") {
+  if (ext === "png" || ext === "webp" || ext === "avif" || ext === "bmp") {
     return ext;
   }
 
@@ -180,7 +184,7 @@ interface DemoStage {
   maxQuality(value: number): unknown;
   dimensions(value: { width?: number; height?: number }): unknown;
   size(value: number, unit: "KB" | "MB"): unknown;
-  run(): Promise<Blob>;
+  compress(file: File): Promise<Blob>;
 }
 
 // ---------------------------------------------------------------------------
@@ -199,7 +203,7 @@ function buildCodeSnippet(
   sizeValue: string,
   sizeUnit: "KB" | "MB"
 ): string {
-  const lines: string[] = ["compress(file)"];
+  const lines: string[] = ["sinter()"];
 
   if (formatMode === "keep") {
     lines.push("  .keepFormat()");
@@ -234,7 +238,7 @@ function buildCodeSnippet(
     lines.push(`  .size(${sv}, "${sizeUnit}")`);
   }
 
-  lines.push("  .run();");
+  lines.push("  .compress(file);");
   return lines.join("\n");
 }
 
@@ -346,10 +350,10 @@ export function App() {
       // while the library uses Omit<this, ...> to prevent duplicate calls in chains.
       const stage = (
         formatMode === "keep"
-          ? compress(file).keepFormat()
+          ? sinter().keepFormat()
           : formatMode === "to"
-            ? compress(file).toFormat(toFormat)
-            : compress(file).allowFormats(allowedFormats, fallbackFormat)
+            ? sinter().toFormat(toFormat)
+            : sinter().allowFormats(allowedFormats, fallbackFormat)
       ) as DemoStage;
 
       if (Object.keys(codecOptions).length > 0) {
@@ -374,7 +378,7 @@ export function App() {
         stage.size(sv, sizeUnit);
       }
 
-      const blob = await stage.run();
+      const blob = await stage.compress(file);
       const duration = performance.now() - start;
 
       const compressedUrl = URL.createObjectURL(blob);
@@ -477,13 +481,13 @@ export function App() {
           <>
             <Upload className="size-6 text-muted-foreground" />
             <p className="text-sm font-medium">Drop an image here, or click to browse</p>
-            <p className="text-xs text-muted-foreground">JPEG, PNG, WebP, AVIF</p>
+            <p className="text-xs text-muted-foreground">JPEG, PNG, WebP, AVIF, BMP</p>
           </>
         )}
         <input
           ref={inputRef}
           type="file"
-          accept="image/jpeg,image/png,image/webp,image/avif"
+          accept="image/jpeg,image/png,image/webp,image/avif,image/bmp"
           className="hidden"
           onChange={handleChange}
         />
@@ -571,8 +575,10 @@ export function App() {
               <p className="text-sm text-muted-foreground">
                 Upload an image to configure codec-specific options for `keepFormat()`.
               </p>
-            ) : activeFormats.every(format => format === "png") ? (
-              <p className="text-sm text-muted-foreground">PNG has no codec-specific options.</p>
+            ) : activeFormats.every(format => format === "png" || format === "bmp") ? (
+              <p className="text-sm text-muted-foreground">
+                PNG and BMP are lossless — no codec-specific options.
+              </p>
             ) : (
               <div className="grid gap-4 sm:grid-cols-3">
                 {activeFormats.includes("webp") && (

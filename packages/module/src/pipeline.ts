@@ -7,6 +7,7 @@ const MIME: Record<ImageFormat, string> = {
   png: "image/png",
   webp: "image/webp",
   avif: "image/avif",
+  bmp: "image/bmp",
 };
 
 // ---------------------------------------------------------------------------
@@ -35,6 +36,11 @@ export async function decodeImage(buffer: ArrayBuffer, format: ImageFormat): Pro
           throw new SinterCodecError("Failed to decode AVIF image: decoder returned null.");
         }
         return result;
+      }
+      case "bmp": {
+        // BMP는 WASM 없이 순수 TS로 처리 (비압축 포맷)
+        const { decodeBmp } = await import("./bmp.js");
+        return decodeBmp(buffer);
       }
     }
   } catch (err) {
@@ -91,6 +97,11 @@ export async function encodeImage(
           quality,
           ...codecOpts.avif,
         });
+      }
+      case "bmp": {
+        // BMP는 비압축 lossless — quality 파라미터 무시
+        const { encodeBmp } = await import("./bmp.js");
+        return encodeBmp(imageData);
       }
     }
   } catch (err) {
@@ -181,24 +192,42 @@ const MAX_SEARCH_STEPS = 7;
 const QUALITY_FLOOR = 20; // stop pushing quality below this
 const MAX_DIMENSION_STEPS = 8;
 const DIMENSION_SCALE = 0.7; // shrink by 30% each step
+const PNG_CNUM_MAX = 256; // UPNG 최대 팔레트 크기 (PNG-8 상한)
+const PNG_CNUM_MIN = 2; // 단색 방지 하한
+
+// UPNG 팔레트 양자화 인코딩 — cnum=0이면 lossless, 2~256은 최대 색상 수
+// maxQuality → cnum: 100→0(lossless), 80→205, 50→128, 0→2
+async function encodePngQuantized(imageData: ImageData, cnum: number): Promise<ArrayBuffer> {
+  const upng = await import("upng-js");
+  // ImageData.data는 Uint8ClampedArray — UPNG은 ArrayBuffer를 요구하므로 slice로 복사
+  return upng.default.encode(
+    [imageData.data.buffer.slice(0)],
+    imageData.width,
+    imageData.height,
+    cnum
+  );
+}
 
 export async function encodeFitSize(
   imageData: ImageData,
   format: ImageFormat,
   targetBytes: number,
   startQuality: number,
-  codecOpts: Partial<CodecMap>
+  codecOpts: Partial<CodecMap>,
+  maxQuality?: number // PNG Phase 2 cnum 계산에 사용
 ): Promise<ArrayBuffer> {
   let current = imageData;
-  let bestQuality = format === "png" ? 100 : startQuality;
+  // BMP/PNG는 lossless — quality 이진탐색 의미 없으므로 100으로 고정
+  let bestQuality = format === "png" || format === "bmp" ? 100 : startQuality;
 
-  // Phase 1: quality binary search (lossy formats only)
+  // Phase 1: @jsquash encode (PNG/BMP는 lossless 1회 시도)
   let encoded = await encodeImage(current, format, { quality: bestQuality, codecOpts });
   if (encoded.byteLength <= targetBytes) {
     return encoded;
   }
 
-  if (format !== "png" && startQuality > QUALITY_FLOOR) {
+  // Phase 1 quality binary search (lossy 포맷만; PNG/BMP는 quality로 크기 조절 불가)
+  if (format !== "png" && format !== "bmp" && startQuality > QUALITY_FLOOR) {
     let low = MIN_QUALITY;
     let high = startQuality;
 
@@ -225,7 +254,38 @@ export async function encodeFitSize(
     }
   }
 
-  // Phase 2: dimension reduction — shrink until size target is met
+  // Phase 2 (PNG 전용): UPNG 팔레트 양자화 이진탐색
+  // maxQuality → startCnum: 높은 quality → 많은 색상 → 큰 파일
+  // 이진탐색으로 targetBytes 이하를 만족하는 최대 cnum(최고 품질) 탐색
+  let bestCnum = PNG_CNUM_MIN;
+  if (format === "png") {
+    const startCnum =
+      maxQuality != null && maxQuality < 100
+        ? Math.max(PNG_CNUM_MIN, Math.round((maxQuality / 100) * PNG_CNUM_MAX))
+        : PNG_CNUM_MAX;
+    let low = PNG_CNUM_MIN;
+    let high = startCnum;
+
+    for (let step = 0; step < MAX_SEARCH_STEPS && low <= high; step++) {
+      const mid = Math.floor((low + high) / 2);
+      encoded = await encodePngQuantized(current, mid);
+
+      if (encoded.byteLength <= targetBytes) {
+        bestCnum = mid;
+        low = mid + 1; // 더 높은 품질(많은 색상)도 시도
+      } else {
+        high = mid - 1; // 색상 수 줄이기
+      }
+    }
+
+    encoded = await encodePngQuantized(current, bestCnum);
+    if (encoded.byteLength <= targetBytes) {
+      return encoded;
+    }
+  }
+
+  // Phase 3: dimension reduction — 축소 후 재인코딩
+  // PNG는 bestCnum으로 UPNG 재인코딩, 나머지는 @jsquash
   for (let step = 0; step < MAX_DIMENSION_STEPS; step++) {
     const newW = Math.max(1, Math.round(current.width * DIMENSION_SCALE));
     const newH = Math.max(1, Math.round(current.height * DIMENSION_SCALE));
@@ -235,7 +295,10 @@ export async function encodeFitSize(
     }
 
     current = resizeImageData(current, { width: newW, height: newH });
-    encoded = await encodeImage(current, format, { quality: bestQuality, codecOpts });
+    encoded =
+      format === "png"
+        ? await encodePngQuantized(current, bestCnum)
+        : await encodeImage(current, format, { quality: bestQuality, codecOpts });
 
     if (encoded.byteLength <= targetBytes) {
       return encoded;
@@ -304,7 +367,11 @@ export async function executePipeline(req: WorkerRequest): Promise<WorkerResultM
   let encoded: ArrayBuffer;
 
   if (sizeLimit != null) {
-    encoded = await encodeFitSize(resized, outputFormat, sizeLimit, quality, codecOpts);
+    encoded = await encodeFitSize(resized, outputFormat, sizeLimit, quality, codecOpts, maxQuality);
+  } else if (outputFormat === "png" && maxQuality != null && maxQuality < 100) {
+    // size limit 없이 maxQuality < 100인 PNG → UPNG 팔레트 양자화 적용
+    const cnum = Math.max(PNG_CNUM_MIN, Math.round((maxQuality / 100) * PNG_CNUM_MAX));
+    encoded = await encodePngQuantized(resized, cnum);
   } else {
     encoded = await encodeImage(resized, outputFormat, { quality, codecOpts });
   }
