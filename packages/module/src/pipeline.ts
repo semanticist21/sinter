@@ -187,7 +187,6 @@ export function resizeImageData(imageData: ImageData, target: TargetDimensions):
 // Size-targeting binary search
 // ---------------------------------------------------------------------------
 
-const MIN_QUALITY = 1;
 const MAX_SEARCH_STEPS = 7;
 const QUALITY_FLOOR = 20; // stop pushing quality below this
 const MAX_DIMENSION_STEPS = 8;
@@ -226,32 +225,38 @@ export async function encodeFitSize(
     return encoded;
   }
 
-  // Phase 1 quality binary search (lossy 포맷만; PNG/BMP는 quality로 크기 조절 불가)
-  if (format !== "png" && format !== "bmp" && startQuality > QUALITY_FLOOR) {
-    let low = MIN_QUALITY;
-    let high = startQuality;
+  // lossy 포맷은 먼저 quality floor까지는 직접 내려보고, 그 아래는 해상도 축소로 넘긴다.
+  if (format !== "png" && format !== "bmp") {
+    const floorQuality = Math.min(startQuality, QUALITY_FLOOR);
+    const floorEncoded =
+      floorQuality === bestQuality
+        ? encoded
+        : await encodeImage(current, format, { quality: floorQuality, codecOpts });
 
-    for (let step = 0; step < MAX_SEARCH_STEPS && low < high; step++) {
-      const mid = Math.floor((low + high) / 2);
-      encoded = await encodeImage(current, format, { quality: mid, codecOpts });
+    if (floorEncoded.byteLength <= targetBytes) {
+      let low = floorQuality;
+      let high = startQuality;
+      let bestEncoded = floorEncoded;
+      bestQuality = floorQuality;
 
-      if (encoded.byteLength <= targetBytes) {
-        low = mid + 1;
-        bestQuality = mid;
-      } else {
-        high = mid;
+      for (let step = 0; step < MAX_SEARCH_STEPS && low < high; step++) {
+        const mid = Math.ceil((low + high + 1) / 2);
+        const midEncoded = await encodeImage(current, format, { quality: mid, codecOpts });
+
+        if (midEncoded.byteLength <= targetBytes) {
+          low = mid;
+          bestQuality = mid;
+          bestEncoded = midEncoded;
+        } else {
+          high = mid - 1;
+        }
       }
 
-      if (mid <= QUALITY_FLOOR) {
-        break;
-      }
+      return bestEncoded;
     }
 
-    // Re-encode at the best quality found
-    encoded = await encodeImage(current, format, { quality: bestQuality, codecOpts });
-    if (encoded.byteLength <= targetBytes) {
-      return encoded;
-    }
+    bestQuality = floorQuality;
+    encoded = floorEncoded;
   }
 
   // Phase 2 (PNG 전용): UPNG 팔레트 양자화 이진탐색

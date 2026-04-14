@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { detectFormat } from "../src/detect";
 import { sinter } from "../src/index";
-import { computeDimensions } from "../src/pipeline";
+import { computeDimensions, decodeImage, encodeFitSize } from "../src/pipeline";
 
 // ---------------------------------------------------------------------------
 // Test assets
@@ -20,6 +20,31 @@ function loadAsset(name: string): File {
 
 function loadBytes(name: string): Uint8Array {
   return new Uint8Array(readFileSync(resolve(ASSETS, name)));
+}
+
+function createBox(type: string, payload: number[]): number[] {
+  const size = payload.length + 8;
+  return [
+    (size >>> 24) & 0xff,
+    (size >>> 16) & 0xff,
+    (size >>> 8) & 0xff,
+    size & 0xff,
+    ...type.split("").map(char => char.charCodeAt(0)),
+    ...payload,
+  ];
+}
+
+function createFtypBox(majorBrand: string, compatibleBrands: string[]): Uint8Array {
+  return new Uint8Array(
+    createBox("ftyp", [
+      ...majorBrand.split("").map(char => char.charCodeAt(0)),
+      0,
+      0,
+      0,
+      0,
+      ...compatibleBrands.flatMap(brand => brand.split("").map(char => char.charCodeAt(0))),
+    ])
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -45,6 +70,18 @@ describe("detectFormat", () => {
 
   test("detects BMP", () => {
     expect(detectFormat(loadBytes("test.bmp"))).toBe("bmp");
+  });
+
+  test("detects AVIF when ftyp is preceded by a free box", () => {
+    const bytes = new Uint8Array([
+      ...createBox("free", [0, 0, 0, 0]),
+      ...createFtypBox("avif", []),
+    ]);
+    expect(detectFormat(bytes)).toBe("avif");
+  });
+
+  test("rejects HEIF-compatible mif1 without AVIF brands", () => {
+    expect(() => detectFormat(createFtypBox("mif1", ["heic"]))).toThrow("Unsupported");
   });
 
   test("throws on too-small buffer", () => {
@@ -404,6 +441,30 @@ describe("combined constraints", () => {
 
     expect(blob.size).toBeLessThan(file.size);
     expect(blob.type).toBe("image/jpeg");
+  });
+
+  test("size fitting keeps original dimensions when lower quality is enough", async () => {
+    const bytes = loadBytes("test.jpeg");
+    const source = bytes.slice().buffer;
+    const imageData = await decodeImage(source, "jpeg");
+    const encoded = await encodeFitSize(imageData, "jpeg", 700_000, 80, {});
+    const result = await decodeImage(encoded, "jpeg");
+
+    expect(encoded.byteLength).toBeLessThanOrEqual(700_000);
+    expect(result.width).toBe(imageData.width);
+    expect(result.height).toBe(imageData.height);
+  });
+
+  test("size fitting shrinks dimensions when quality floor is still too large", async () => {
+    const bytes = loadBytes("test.jpeg");
+    const source = bytes.slice().buffer;
+    const imageData = await decodeImage(source, "jpeg");
+    const encoded = await encodeFitSize(imageData, "jpeg", 40_000, 80, {});
+    const result = await decodeImage(encoded, "jpeg");
+
+    expect(encoded.byteLength).toBeLessThanOrEqual(40_000);
+    expect(result.width).toBeLessThan(imageData.width);
+    expect(result.height).toBeLessThan(imageData.height);
   });
 
   test("quality + size limit", async () => {

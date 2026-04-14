@@ -20,7 +20,7 @@
 **Sinter** is a browser-side image compression library powered by WASM codecs.
 No server round-trips. No backend costs. The user's browser does all the work.
 
-- JPEG, PNG, WebP, AVIF
+- JPEG, PNG, WebP, AVIF, BMP
 - Resize, quality control, file size targeting
 - Runs in a **Web Worker** — UI never blocks
 - Fluent, type-safe API with compile-time guardrails
@@ -105,6 +105,7 @@ sinter()
 | `webp` | `{ lossless?: boolean }` |
 | `avif` | `{ speed?: number }` |
 | `png` | *(none — lossless)* |
+| `bmp` | *(none — uncompressed lossless)* |
 
 ### Compression
 
@@ -128,11 +129,11 @@ import { SinterValidationError, SinterCodecError } from "sinter-js";
 
 ## How It Works
 
-1. **Detect** format via magic bytes (not file extension)
+1. **Detect** format via magic bytes / ISOBMFF brands (not file extension)
 2. **Decode** with the matching `@jsquash/*` WASM decoder
 3. **Resize** on canvas if `dimensions()` is set
 4. **Encode** to the target format at the determined quality
-5. **Fit size** — if `size()` is set, reduce quality first (lossy formats), then shrink dimensions step-by-step until the target is met (best-effort)
+5. **Fit size** — if `size()` is set, lossy formats reduce quality first down to a floor, then shrink dimensions step-by-step until the target is met (best-effort)
 
 Single decode-encode pass. No generation loss from repeated re-encoding.
 
