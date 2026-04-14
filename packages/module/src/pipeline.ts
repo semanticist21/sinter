@@ -359,6 +359,12 @@ export async function executePipeline(req: WorkerRequest): Promise<WorkerResultM
   // 5. Determine quality
   let quality = 100;
   if (maxQuality != null) {
+    // BMP는 비압축 lossless — maxQuality는 효과 없음 (size constraint는 dimension reduction으로 처리)
+    if (outputFormat === "bmp") {
+      console.warn(
+        "[sinter] maxQuality has no effect on BMP output. Use .size() to constrain file size."
+      );
+    }
     const threshold = maxQuality / 100;
     quality = pixelRatio <= threshold ? 100 : maxQuality;
   }
