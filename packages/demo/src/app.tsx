@@ -663,7 +663,7 @@ export function App() {
           {/* Other options row */}
           <div className="grid grid-cols-2 gap-x-5 gap-y-5 sm:grid-cols-3">
             {/* Quality — lossless 포맷(PNG/BMP)만 출력될 때는 숨김 */}
-            {!activeFormats.every(f => f === "png" || f === "bmp") && (
+            {!activeFormats.every(f => f === "bmp") && (
               <div className="space-y-2">
                 <Label>
                   Quality <span className="font-normal text-muted-foreground">{quality}</span>
