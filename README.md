@@ -111,7 +111,7 @@ sinter()
 | Method | Description |
 |--------|-------------|
 | `maxQuality(n)` | Sets quality ceiling (1-100). May be lowered further to meet `size()`. |
-| `size(value, unit)` | Target file size (`"KB"` or `"MB"`). Uses quality binary search, then dimension reduction. |
+| `size(value, unit)` | Try to fit the output within this size (`"KB"` or `"MB"`). Reduces quality first, then shrinks dimensions if needed. The target is best-effort — a warning is logged if it cannot be met. |
 | `dimensions({ width?, height? })` | Resize within bounds, preserving aspect ratio. |
 | `timeout(seconds)` | Rejects with error if compression exceeds the time limit. No timeout by default. |
 
@@ -132,7 +132,7 @@ import { SinterValidationError, SinterCodecError } from "sinter-js";
 2. **Decode** with the matching `@jsquash/*` WASM decoder
 3. **Resize** on canvas if `dimensions()` is set
 4. **Encode** to the target format at the determined quality
-5. **Fit size** — if `size()` is set, binary-search quality then reduce dimensions until target is met
+5. **Fit size** — if `size()` is set, reduce quality first (lossy formats), then shrink dimensions step-by-step until the target is met (best-effort)
 
 Single decode-encode pass. No generation loss from repeated re-encoding.
 
