@@ -7,7 +7,7 @@ export type CodecMap = {
   webp: { lossless?: boolean };
   jpeg: { progressive?: boolean };
   png: Record<string, never>;
-  bmp: Record<string, never>; // 비압축 포맷 — 인코더 옵션 없음
+  bmp: Record<string, never>; // Uncompressed format — no encoder options
 };
 
 export type CodecOptions<F extends ImageFormat = ImageFormat> = Partial<{

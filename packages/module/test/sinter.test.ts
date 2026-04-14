@@ -571,7 +571,7 @@ describe("BMP", () => {
   test("size constraint — BMP는 dimension reduction만 적용", async () => {
     const file = loadAsset("test.jpeg");
 
-    // JPEG를 BMP로 변환하면 사이즈 커지므로, 작은 크기로 dimension 제한
+    // Converting JPEG to BMP increases size, so constrain dimensions to keep it small
     const blob = await sinter()
       .toFormat("bmp")
       .dimensions({ width: 10 })

@@ -69,7 +69,7 @@ function isAvifFtypBox(data: Uint8Array, offset: number, boxSize: number): boole
     return false;
   }
 
-  // major brand와 compatible brands를 함께 확인해서 HEIF/HEIC를 배제한다.
+  // Check both the major brand and compatible brands to exclude HEIF/HEIC.
   const brandOffset = offset + headerSize;
   const brand = readFourCC(data, brandOffset);
   if (brand === "avif" || brand === "avis") {
@@ -99,7 +99,7 @@ function isAvif(data: Uint8Array): boolean {
     return false;
   }
 
-  // 선행 free/skip box가 있어도 초반 ISOBMFF box들을 순회하며 ftyp를 찾는다.
+  // Scan early ISOBMFF boxes for ftyp even when free/skip boxes come first.
   const scanEnd = Math.min(data.length, MAX_ISOBMFF_SCAN_BYTES);
   for (let offset = 0; offset + ISOBMFF_BOX_HEADER_SIZE <= scanEnd; ) {
     const boxSize = readBoxSize(data, offset);

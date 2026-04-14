@@ -6,7 +6,7 @@ import type {
   WorkerResultMessage,
 } from "./types";
 
-// run()에 전달되는 파일 유효성 검사
+// Validate the file passed to run()
 function validateFile(file: File): void {
   if (!(file instanceof File)) {
     throw new SinterValidationError("run() expects a File instance.");
@@ -76,7 +76,7 @@ export class SinterBuilder {
     return this;
   }
 
-  /** 파이프라인을 실행하고 압축된 이미지 Blob을 반환한다. */
+  /** Executes the pipeline and returns the compressed image Blob. */
   async compress(file: File): Promise<Blob> {
     validateFile(file);
     const { formatPolicy, codecOpts, maxQuality, dims, sizeLimit, timeout } = this._config;
