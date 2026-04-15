@@ -14,6 +14,9 @@ packages/module/README.md
 *~
 .DS_Store
 
+# Claude local worktrees
+.claude/
+
 # Testing
 coverage/
 

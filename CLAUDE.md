@@ -4,95 +4,115 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Sinter** - High-performance browser image compression library (Bun workspace monorepo)
+**Sinter** is a Bun workspace monorepo for a browser-only image compression library and its demo app.
 
-## Structure
+- `packages/module`: published package `sinter-js`
+- `packages/demo`: local demo app used to validate library behavior before release
 
-```
-packages/
-├── module/    # sinter-js - TypeScript library (built with tsdown)
-└── demo/      # @sinter/demo - Demo app (Rspack + React + Tailwind)
-```
-
-## Commands
+## Common Commands
 
 ```bash
-bun install        # Install dependencies
-bun run build      # Build everything
-bun run check      # Run Biome lint + TypeScript type checks (read-only)
-bun run fix        # Apply Biome formatting and safe fixes (--write)
-bun run demo       # Build module, then start the demo dev server (port 4173)
-bun run dev        # Start only the demo dev server (does not build module)
-bun run update     # Update dependencies
+bun install
+bun run build
+bun run check
+bun run fix
+bun run dev
+bun run demo
+bun --filter sinter-js build
+bun --filter sinter-js test
+bun test packages/module/test/sinter.test.ts
+bun --filter sinter-js test -- --test-name-pattern "detects AVIF"
+bun --filter @sinter/demo build
+bun --filter @sinter/demo dev
 ```
 
-### Package-specific
+### Command Notes
 
-```bash
-bun --filter sinter-js build    # Build only the module
-bun --filter sinter-js test     # Run tests (bun test, 68 tests, ~50s)
-bun --filter @sinter/demo dev        # Start only the demo dev server
-```
+- `bun run check` runs Biome plus TypeScript checks across the workspace.
+- `bun run fix` applies Biome formatting fixes.
+- `bun run dev` starts only the demo app.
+- `bun run demo` rebuilds `sinter-js` first, then starts the demo app on port `4173`.
+- The demo resolves `sinter-js` from `packages/module/dist/index.mjs`, so rebuild the module after library changes if you are not using `bun run demo`.
+- Module tests run with Bun and use the non-worker execution path.
 
-## Packages
+## Architecture
 
-### sinter-js
-- **Build**: `tsdown` (externalizes `@jsquash/*`)
-- **Output**: `dist/index.mjs` + `dist/index.d.mts`
-- **Test**: `bun test` with polyfills for `ImageData`/`OffscreenCanvas` (see `test/setup.ts`)
-- **Test assets**: `assets/test/` has test.jpeg, test.png, test.webp, test.avif
-- **Codecs**: `@jsquash/*` packages use WASM; dynamic `import()` with `.js` extension required for ESM resolution
+### Workspace shape
 
-### @sinter/demo
-- **Stack**: Rspack + React 19 + Tailwind CSS v4 + shadcn/ui (green theme)
-- **Purpose**: Demo app for testing library behavior before release
-- **Dev**: References `sinter-js` dist directly through an rspack alias
-- **WASM**: `experiments.asyncWebAssembly` enabled in rspack config
+- Root `package.json` orchestrates workspace-wide build/check/fix commands.
+- `packages/module` is the real product: a fluent API around image format selection, codec options, resizing, size targeting, and worker execution.
+- `packages/demo` is a React 19 + Rspack + Tailwind v4 playground that exercises the built module locally.
 
-## Code Style
+### Fluent API pipeline
 
-- **Biome**: 2-space indent, 100-char line width, trailing commas (ES5)
-- **TypeScript**: Strict mode, ESM only
+The public API starts at `packages/module/src/index.ts` and returns `SinterFormatStage`.
+The chain is split into staged classes so invalid call order is prevented by the type system:
 
-## Git Convention
+1. `format.ts` — choose output policy with `keepFormat()`, `toFormat()`, or `allowFormats()`
+2. `codec.ts` — attach format-specific codec options
+3. `builder.ts` — add shared controls like `maxQuality()`, `dimensions()`, `size()`, `timeout()`, then call `compress()`
 
-- **Commit**: Conventional Commits (`feat:`, `fix:`, `refactor:`, `build:`, `docs:`, `chore:`)
+This is enforced with a shared mutable `PipelineConfig`, not a recorded step array.
+Repeated calls like `maxQuality()` or `size()` are blocked at compile time via `Omit<this, ...>` return types.
 
-## API Design Decisions (sinter-js)
+### Execution model
 
-### Entry Point and Chaining Shape
-```
-sinter()
-  .keepFormat() | .toFormat(format) | .allowFormats(allowed, to)
-  .codecOptions({ webp: { lossless: false } }) // Format-specific codec options
-  .maxQuality(80)       // Quality ceiling when no size constraint is set
-  .size(1, 'MB')        // File size constraint (both value and unit are required)
-  .dimensions({ width: 300 })              // Resize by width only
-  .dimensions({ height: 200 })             // Resize by height only
-  .dimensions({ width: 300, height: 200 }) // Resize width and height together
-  .timeout(30)          // Timeout in seconds (rejects if exceeded)
-  .compress(file: File) // Terminal method, returns Promise<Blob>
-```
+`builder.ts` chooses between two execution paths:
 
-### Key Decisions
-- **Terminal method**: `.compress(file)` — the library name `sinter()` is the entry point, and the terminal action is `compress(file)`
-- **Compression execution**: Single-pass to avoid generation loss — decode -> resize -> encode once
-- **Pipeline**: Record call order in a `pipeline[]` array, then translate it into a single pass with @jsquash at `run()`
-- **Codec options stage**: `codecOptions()` holds format-specific encoder settings after the output format policy is chosen
-- **`maxQuality` vs `size`**: If `size` is set, lower the quality until the size target is met; otherwise keep `maxQuality`
-- **Quality vs codec options**: Keep quality on `maxQuality()` so shared quality rules do not compete with format-specific options
-- **Duplicate call prevention**: `maxQuality()`, `dimensions()`, `size()` return `Omit<this, "method">` — calling the same method twice is a compile-time error
-- **Codecs**: `@jsquash/avif`, `@jsquash/webp`, `@jsquash/jpeg`, `@jsquash/png` (browser WASM)
-- **Web Worker**: `run()` offloads the entire pipeline (decode → resize → encode) to a dedicated Worker to keep the UI responsive. Falls back to direct execution in non-browser environments (bun test)
-- **Timeout**: `.timeout(seconds)` rejects with `SinterCodecError` and terminates the Worker if compression exceeds the limit
+- Browser: spawns `dist/worker.mjs` via `new Worker(new URL("./worker.mjs", import.meta.url))`
+- Bun tests / non-browser: imports `executePipeline()` directly from `pipeline.ts`
 
-### Implementation Notes
-- **Pipeline state**: Uses shared mutable `PipelineConfig` object (not a `pipeline[]` array) — functionally equivalent to spec, enforced by the type-safe stage chain
-- **Size enforcement**: Two-phase approach — Phase 1: quality binary search (lossy only), Phase 2: dimension reduction (70% per step, max 8 steps). Emits `console.warn` if target not met
-- **PNG**: Lossless format — `maxQuality` has no effect; size constraint uses dimension reduction only
-- **WebP lossless**: `codecOptions({ webp: { lossless: true } })` converts `boolean` to `number` (0/1) for the encoder
-- **Inflation guard**: When same format, no actual resize, no size limit — returns original bytes if re-encode inflates
-- **Quality-vs-dimensions heuristic**: If dimension reduction brings pixel count ≤ `maxQuality/100`, encoder quality is set to 100 (dimension reduction already satisfies the quality goal)
-- **Format detection**: Magic bytes only (not file extension) — JPEG `FF D8 FF`, PNG `89 50 4E 47...`, WebP `RIFF...WEBP`, AVIF ftyp box with `avif`/`avis`/`mif1` brand
-- **Worker build**: `tsdown` produces two entries — `dist/index.mjs` (main) + `dist/worker.mjs` (worker). The worker is loaded via `new URL("./worker.mjs", import.meta.url)` pattern recognized by Rspack/Vite/Webpack
-- **Canvas**: Uses `OffscreenCanvas` only (no `document.createElement` fallback) — runs in Worker context
+`worker.ts` is only a thin message bridge that converts thrown errors into typed worker messages.
+Core compression logic lives in `pipeline.ts` and is shared by both paths.
+
+### Compression pipeline internals
+
+`packages/module/src/pipeline.ts` does the real work in this order:
+
+1. detect source format
+2. resolve output format from the format policy
+3. decode to `ImageData`
+4. resize with `OffscreenCanvas` if needed
+5. choose encode quality
+6. encode once, or run size-fitting if `size()` is set
+7. apply the inflation guard when same-format re-encoding would enlarge the file
+
+Important behavior to preserve:
+
+- Heavy work is designed around a single decode/resize/encode flow to avoid repeated generation loss.
+- `size()` is best-effort.
+- Lossy formats use quality reduction first, then dimension reduction.
+- PNG uses `upng-js` palette quantization when targeting smaller output.
+- BMP uses a local pure TypeScript codec in `bmp.ts` instead of `@jsquash/*`.
+- If the output format matches the input, no resize happened, and no size limit is set, larger re-encodes return the original bytes.
+
+### Format detection and codec boundaries
+
+`detect.ts` uses magic bytes, not file extensions.
+AVIF detection scans early ISOBMFF boxes for `ftyp`, so valid AVIF files with leading boxes still detect correctly.
+Current supported formats are `jpeg`, `png`, `webp`, `avif`, and `bmp`.
+
+Codec boundaries are split like this:
+
+- `@jsquash/jpeg`, `@jsquash/png`, `@jsquash/webp`, `@jsquash/avif` for WASM decode/encode
+- `bmp.ts` for BMP decode/encode
+- `types.ts` for the format policy, worker protocol, and shared config types
+
+### Demo app coupling
+
+The demo’s Rspack config aliases `sinter-js` to `../module/dist/index.mjs` and enables `asyncWebAssembly`.
+That means demo behavior reflects the built output, not the raw TypeScript source.
+When debugging demo issues after module edits, confirm the module has been rebuilt.
+
+## Testing Notes
+
+- Main coverage lives in `packages/module/test/sinter.test.ts`.
+- Tests cover format detection, validation, cross-format conversion, size targeting, and regression cases in the fitting pipeline.
+- Test assets live in `assets/test/` and are shared across module tests.
+
+## Tooling Notes
+
+- Biome is the formatter/linter: 2 spaces, 100-char line width, trailing commas `es5`.
+- Biome explicitly excludes `.claude` paths to avoid nested-root errors from Claude worktrees.
+- TypeScript is strict and ESM-only.
+- `tsdown` builds the module output, including both the main entry and worker entry.

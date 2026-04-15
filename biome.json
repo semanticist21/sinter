@@ -59,6 +59,7 @@
     "ignoreUnknown": false,
     "includes": [
       "package.json",
+      "!**/.claude",
       "biome.json",
       "tsconfig.base.json",
       "packages/**/package.json",
