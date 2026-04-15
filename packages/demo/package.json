@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "rspack dev",
     "build": "rspack build",
-    "check": "tsc -p tsconfig.json --noEmit"
+    "check": "bunx --package @typescript/native-preview tsgo -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "sinter-js": "workspace:*",

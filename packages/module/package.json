@@ -37,7 +37,7 @@
   "sideEffects": false,
   "scripts": {
     "build": "tsdown",
-    "check": "tsc -p tsconfig.json --noEmit",
+    "check": "bunx --package @typescript/native-preview tsgo -p tsconfig.json --noEmit",
     "test": "bun test"
   },
   "devDependencies": {
