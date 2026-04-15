@@ -197,6 +197,7 @@ function buildCodeSnippet(
   allowedFormats: ImageFormat[],
   fallbackFormat: ImageFormat,
   codecOptions: Partial<CodecMap>,
+  supportsQuality: boolean,
   quality: number,
   width: string,
   height: string,
@@ -219,7 +220,8 @@ function buildCodeSnippet(
     lines.push(codecOptionsSnippet);
   }
 
-  if (quality < 100) {
+  // BMP 출력만 가능한 경우 quality API를 노출하지 않는다.
+  if (supportsQuality && quality < 100) {
     lines.push(`  .maxQuality(${quality})`);
   }
 
@@ -332,6 +334,8 @@ export function App() {
     fallbackFormat
   );
   const codecOptions = buildCodecOptions(activeFormats, webpLossless, avifSpeed, jpegProgressive);
+  // BMP만 활성화된 경우 quality API를 호출하지 않는다.
+  const supportsQuality = !activeFormats.every(format => format === "bmp");
 
   const handleCompress = useCallback(async () => {
     if (!file) {
@@ -368,7 +372,8 @@ export function App() {
         stage.codecOptions(codecOptions);
       }
 
-      if (quality < 100) {
+      // BMP 출력만 가능한 경우 runtime에서도 maxQuality 호출을 생략한다.
+      if (supportsQuality && quality < 100) {
         stage.maxQuality(quality);
       }
 
@@ -432,6 +437,7 @@ export function App() {
     height,
     sizeValue,
     sizeUnit,
+    supportsQuality,
   ]);
 
   const reduction = result
@@ -444,6 +450,7 @@ export function App() {
     allowedFormats,
     fallbackFormat,
     codecOptions,
+    supportsQuality,
     quality,
     width,
     height,
