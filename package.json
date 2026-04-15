@@ -16,7 +16,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.10",
-    "@types/upng-js": "^2.1.5"
+    "@types/upng-js": "^2.1.5",
+    "@typescript/native-preview": "^7.0.0-dev.20260414.1"
   },
   "dependencies": {
     "upng-js": "^2.1.0"

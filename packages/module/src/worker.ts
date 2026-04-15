@@ -5,7 +5,7 @@ import type { WorkerErrorMessage, WorkerRequest } from "./types";
 self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
   try {
     const result = await executePipeline(e.data);
-    postMessage(result, [result.buffer]);
+    self.postMessage(result, { transfer: [result.buffer] });
   } catch (err) {
     let errorType: WorkerErrorMessage["errorType"] = "unknown";
     if (err instanceof SinterValidationError) {
