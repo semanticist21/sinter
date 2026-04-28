@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { detectFormat } from "../src/detect";
 import { sinter } from "../src/index";
-import { computeDimensions, decodeImage, encodeFitSize } from "../src/pipeline";
+import { computeDimensions, decodeImage, encodeFitSize, encodeImage } from "../src/pipeline";
 
 // ---------------------------------------------------------------------------
 // Test assets
@@ -20,6 +20,15 @@ function loadAsset(name: string): File {
 
 function loadBytes(name: string): Uint8Array {
   return new Uint8Array(readFileSync(resolve(ASSETS, name)));
+}
+
+function hasJpegMarker(bytes: Uint8Array, marker: number): boolean {
+  for (let i = 0; i < bytes.length - 1; i++) {
+    if (bytes[i] === 0xff && bytes[i + 1] === marker) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function createBox(type: string, payload: number[]): number[] {
@@ -178,6 +187,47 @@ describe("builder validation", () => {
 // ---------------------------------------------------------------------------
 
 describe("JPEG", () => {
+  test("native decode returns RGBA ImageData", async () => {
+    const bytes = loadBytes("test.jpeg");
+    const imageData = await decodeImage(bytes.slice().buffer, "jpeg");
+
+    expect(imageData.width).toBeGreaterThan(0);
+    expect(imageData.height).toBeGreaterThan(0);
+    expect(imageData.data.byteLength).toBe(imageData.width * imageData.height * 4);
+    expect(imageData.data[3]).toBe(255);
+  });
+
+  test("native encode returns JPEG bytes", async () => {
+    const bytes = loadBytes("test.jpeg");
+    const imageData = await decodeImage(bytes.slice().buffer, "jpeg");
+    const encoded = await encodeImage(imageData, "jpeg", { quality: 80, codecOpts: {} });
+
+    expect(detectFormat(new Uint8Array(encoded))).toBe("jpeg");
+    expect(encoded.byteLength).toBeGreaterThan(0);
+  });
+
+  test("progressive option produces valid JPEG", async () => {
+    const bytes = loadBytes("test.jpeg");
+    const imageData = await decodeImage(bytes.slice().buffer, "jpeg");
+    const encoded = await encodeImage(imageData, "jpeg", {
+      quality: 80,
+      codecOpts: { jpeg: { progressive: true } },
+    });
+    const encodedBytes = new Uint8Array(encoded);
+
+    expect(detectFormat(encodedBytes)).toBe("jpeg");
+    expect(hasJpegMarker(encodedBytes, 0xc2)).toBe(true); // SOF2 = progressive DCT
+  });
+
+  test("keepFormat validates corrupt JPEG payloads", async () => {
+    const file = new File(
+      [new Uint8Array([0xff, 0xd8, 0xff, ...Array(32).fill(0)])],
+      "corrupt.jpeg"
+    );
+
+    await expect(sinter().keepFormat().compress(file)).rejects.toThrow("Failed to decode JPEG");
+  });
+
   test("keepFormat — quality reduces file size", async () => {
     const file = loadAsset("test.jpeg");
     const original = file.size;
@@ -708,7 +758,7 @@ describe("quality-vs-dimensions interaction", () => {
 // ---------------------------------------------------------------------------
 
 describe("default behavior", () => {
-  test("keepFormat with no constraints re-encodes at full quality", async () => {
+  test("JPEG keepFormat with no constraints returns valid output", async () => {
     const file = loadAsset("test.jpeg");
 
     const blob = await sinter().keepFormat().compress(file);
@@ -737,8 +787,7 @@ describe("output dimensions", () => {
 
     // Decode the output to check dimensions
     const buf = await blob.arrayBuffer();
-    const { default: decode } = await import("@jsquash/jpeg/decode.js");
-    const img = await decode(buf);
+    const img = await decodeImage(buf, "jpeg");
     expect(img.width).toBe(200);
     // Height should be proportional (3840x2880 → 200x150)
     expect(img.height).toBe(150);
@@ -752,8 +801,7 @@ describe("output dimensions", () => {
     const blob = await sinter().keepFormat().dimensions({ height: 100 }).compress(file);
 
     const buf = await blob.arrayBuffer();
-    const { default: decode } = await import("@jsquash/jpeg/decode.js");
-    const img = await decode(buf);
+    const img = await decodeImage(buf, "jpeg");
     expect(img.height).toBe(100);
     // Width should be proportional (3840x2880 → 133x100)
     expect(img.width).toBe(133);

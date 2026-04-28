@@ -18,7 +18,7 @@ export async function decodeImage(buffer: ArrayBuffer, format: ImageFormat): Pro
   try {
     switch (format) {
       case "jpeg": {
-        const { default: decode } = await import("@jsquash/jpeg/decode.js");
+        const { decodeJpeg: decode } = await import("./codecs/jpeg.js");
         return decode(buffer);
       }
       case "png": {
@@ -72,7 +72,7 @@ export async function encodeImage(
   try {
     switch (format) {
       case "jpeg": {
-        const { default: encode } = await import("@jsquash/jpeg/encode.js");
+        const { encodeJpeg: encode } = await import("./codecs/jpeg.js");
         return encode(imageData, {
           quality,
           ...codecOpts.jpeg,

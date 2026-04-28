@@ -4,6 +4,8 @@ node_modules/
 # Build outputs
 dist/
 build/
+packages/module/native/build/
+packages/module/src/codecs/*.wasm
 packages/module/README.md
 
 # IDEs

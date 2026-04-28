@@ -83,6 +83,7 @@ Important behavior to preserve:
 - `size()` is best-effort.
 - Lossy formats use quality reduction first, then dimension reduction.
 - PNG uses `upng-js` palette quantization when targeting smaller output.
+- JPEG uses Sinter's native MozJPEG WASM codec built through Zig.
 - BMP uses a local pure TypeScript codec in `bmp.ts` instead of `@jsquash/*`.
 - If the output format matches the input, no resize happened, and no size limit is set, larger re-encodes return the original bytes.
 
@@ -94,7 +95,8 @@ Current supported formats are `jpeg`, `png`, `webp`, `avif`, and `bmp`.
 
 Codec boundaries are split like this:
 
-- `@jsquash/jpeg`, `@jsquash/png`, `@jsquash/webp`, `@jsquash/avif` for WASM decode/encode
+- `src/codecs/jpeg.ts` plus `native/jpeg/sinter_jpeg.c` for JPEG decode/encode
+- `@jsquash/png`, `@jsquash/webp`, `@jsquash/avif` for remaining WASM decode/encode
 - `bmp.ts` for BMP decode/encode
 - `types.ts` for the format policy, worker protocol, and shared config types
 

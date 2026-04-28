@@ -32,7 +32,8 @@ No server round-trips. No backend costs. The user's browser does all the work.
 npm install sinter-js
 ```
 
-> `@jsquash/*` WASM codec packages are included as dependencies and loaded on demand.
+> Sinter ships its own native JPEG WASM codec and loads the remaining
+> `@jsquash/*` WASM codec packages on demand.
 
 ## Quick Start
 
@@ -130,7 +131,7 @@ import { SinterValidationError, SinterCodecError } from "sinter-js";
 ## How It Works
 
 1. **Detect** format via magic bytes / ISOBMFF brands (not file extension)
-2. **Decode** with the matching `@jsquash/*` WASM decoder
+2. **Decode** with the matching WASM decoder
 3. **Resize** on canvas if `dimensions()` is set
 4. **Encode** to the target format at the determined quality
 5. **Fit size** — if `size()` is set, lossy formats reduce quality first down to a floor, then shrink dimensions step-by-step until the target is met (best-effort)
