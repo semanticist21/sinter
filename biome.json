@@ -60,6 +60,7 @@
     "includes": [
       "package.json",
       "!**/.claude",
+      "!packages/module/native/build",
       "biome.json",
       "tsconfig.base.json",
       "packages/**/package.json",

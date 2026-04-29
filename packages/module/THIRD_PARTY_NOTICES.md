@@ -64,3 +64,66 @@ or portions thereof for any purpose, without fee, subject to these conditions:
 3. Permission for use of this software is granted only if the user accepts full
    responsibility for any undesirable consequences; the authors accept NO
    LIABILITY for damages of any kind.
+
+## ravif / rav1e / rav1d / avif-serialize / avif-parse
+
+The native AVIF WebAssembly codec included in this package is built from ravif
+0.13.0 for encoding, rav1d 1.1.0 for AV1 decoding, avif-serialize for AVIF
+container serialization, and avif-parse 2.1.0 for AVIF container parsing.
+
+ravif and avif-serialize are covered by the BSD 3-Clause License. rav1e and
+rav1d are covered by the BSD 2-Clause License. avif-parse is covered by the
+MPL 2.0 License.
+
+### ravif BSD 3-Clause Notice
+
+Copyright (c) 2020, Kornel
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the BSD 3-Clause License conditions
+are met.
+
+### avif-serialize BSD 3-Clause Notice
+
+Copyright (c) 2020, Cloudflare, Inc.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the BSD 3-Clause License conditions
+are met.
+
+### rav1e BSD 2-Clause Notice
+
+Copyright (c) 2017-2023, the rav1e contributors
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the BSD 2-Clause License conditions
+are met.
+
+### rav1d BSD 2-Clause Notice
+
+Copyright (c) 2023, the rav1d contributors
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the BSD 2-Clause License conditions
+are met.
+
+### avif-parse MPL 2.0 Notice
+
+avif-parse is made available under the Mozilla Public License 2.0. The MPL 2.0
+license text is available at https://www.mozilla.org/MPL/2.0/.
+
+THESE SOFTWARE COMPONENTS ARE PROVIDED BY THEIR COPYRIGHT HOLDERS AND
+CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
+OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+IN ANY WAY OUT OF THE USE OF THESE SOFTWARE COMPONENTS, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.

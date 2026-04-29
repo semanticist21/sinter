@@ -96,7 +96,8 @@ Current supported formats are `jpeg`, `png`, `webp`, `avif`, and `bmp`.
 Codec boundaries are split like this:
 
 - `src/codecs/jpeg.ts` plus `native/jpeg/sinter_jpeg.c` for JPEG decode/encode
-- `@jsquash/png`, `@jsquash/webp`, `@jsquash/avif` for remaining WASM decode/encode
+- `src/codecs/avif.ts` plus `native/avif` for AVIF decode/encode
+- `@jsquash/png` and `@jsquash/webp` for remaining WASM codec paths
 - `bmp.ts` for BMP decode/encode
 - `types.ts` for the format policy, worker protocol, and shared config types
 

@@ -30,12 +30,8 @@ export async function decodeImage(buffer: ArrayBuffer, format: ImageFormat): Pro
         return decode(buffer);
       }
       case "avif": {
-        const { default: decode } = await import("@jsquash/avif/decode.js");
-        const result = await decode(buffer);
-        if (!result) {
-          throw new SinterCodecError("Failed to decode AVIF image: decoder returned null.");
-        }
-        return result;
+        const { decodeAvif: decode } = await import("./codecs/avif.js");
+        return decode(buffer);
       }
       case "bmp": {
         // BMP is handled in pure TypeScript without WASM (uncompressed format)
@@ -92,7 +88,7 @@ export async function encodeImage(
         });
       }
       case "avif": {
-        const { default: encode } = await import("@jsquash/avif/encode.js");
+        const { encodeAvif: encode } = await import("./codecs/avif.js");
         return encode(imageData, {
           quality,
           ...codecOpts.avif,

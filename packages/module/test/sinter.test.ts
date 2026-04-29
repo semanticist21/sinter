@@ -404,6 +404,25 @@ describe("WebP", () => {
 // ---------------------------------------------------------------------------
 
 describe("AVIF", () => {
+  test("native decode returns RGBA ImageData", async () => {
+    const bytes = loadBytes("test.avif");
+    const imageData = await decodeImage(bytes.slice().buffer, "avif");
+
+    expect(imageData.width).toBeGreaterThan(0);
+    expect(imageData.height).toBeGreaterThan(0);
+    expect(imageData.data.byteLength).toBe(imageData.width * imageData.height * 4);
+    expect(imageData.data[3]).toBe(255);
+  });
+
+  test("native encode returns AVIF bytes", async () => {
+    const bytes = loadBytes("test.jpeg");
+    const imageData = await decodeImage(bytes.slice().buffer, "jpeg");
+    const encoded = await encodeImage(imageData, "avif", { quality: 80, codecOpts: {} });
+
+    expect(detectFormat(new Uint8Array(encoded))).toBe("avif");
+    expect(encoded.byteLength).toBeGreaterThan(0);
+  });
+
   test("keepFormat — quality reduces file size", async () => {
     const file = loadAsset("test.avif");
 
