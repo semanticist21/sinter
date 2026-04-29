@@ -56,6 +56,22 @@ function createFtypBox(majorBrand: string, compatibleBrands: string[]): Uint8Arr
   );
 }
 
+function createBmpHeader(width: number, height: number): Uint8Array {
+  const bytes = new Uint8Array(54);
+  const view = new DataView(bytes.buffer);
+  bytes[0] = 0x42;
+  bytes[1] = 0x4d;
+  view.setUint32(2, bytes.byteLength, true);
+  view.setUint32(10, 54, true);
+  view.setUint32(14, 40, true);
+  view.setInt32(18, width, true);
+  view.setInt32(22, height, true);
+  view.setUint16(26, 1, true);
+  view.setUint16(28, 24, true);
+  view.setUint32(30, 0, true);
+  return bytes;
+}
+
 // ---------------------------------------------------------------------------
 // Format detection (magic bytes)
 // ---------------------------------------------------------------------------
@@ -642,6 +658,14 @@ describe("BMP", () => {
 
     expect(detectFormat(new Uint8Array(encoded))).toBe("bmp");
     expect(encoded.byteLength).toBeGreaterThan(0);
+  });
+
+  test("native decode rejects oversized crafted dimensions", async () => {
+    const bytes = createBmpHeader(0x40000000, 1);
+
+    await expect(decodeImage(bytes.buffer as ArrayBuffer, "bmp")).rejects.toThrow(
+      "Failed to decode BMP"
+    );
   });
 
   test("keepFormat — BMP 출력 타입 확인", async () => {

@@ -23,6 +23,7 @@
   ],
   "files": [
     "dist",
+    "LICENSE",
     "README.md",
     "THIRD_PARTY_NOTICES.md"
   ],
@@ -41,7 +42,7 @@
     "build:native": "bun scripts/build-jpeg-wasm.ts && bun scripts/build-avif-wasm.ts && bun scripts/build-bmp-wasm.ts && bun scripts/build-png-wasm.ts && bun scripts/build-webp-wasm.ts",
     "build:native:copy-dist": "bun scripts/build-jpeg-wasm.ts --copy-dist && bun scripts/build-avif-wasm.ts --copy-dist && bun scripts/build-bmp-wasm.ts --copy-dist && bun scripts/build-png-wasm.ts --copy-dist && bun scripts/build-webp-wasm.ts --copy-dist",
     "check": "tsgo -p tsconfig.json --noEmit",
-    "test": "bun run build:native && bun test"
+    "test": "bun run build && bun test"
   },
   "devDependencies": {
     "@types/bun": "^1.3.12",

@@ -145,7 +145,12 @@ fn decode_bmp(input: &[u8]) -> Result<BmpResult, ()> {
     let width = width as usize;
     let height = height as usize;
     let bytes_per_pixel = bit_count as usize / 8;
-    let row_stride = (width * bytes_per_pixel).div_ceil(4) * 4;
+    let row_bytes = width.checked_mul(bytes_per_pixel).ok_or(())?;
+    let row_stride = row_bytes
+        .checked_add(3)
+        .and_then(|bytes| bytes.checked_div(4))
+        .and_then(|words| words.checked_mul(4))
+        .ok_or(())?;
     let pixel_end = pixel_offset
         .checked_add(height.checked_mul(row_stride).ok_or(())?)
         .ok_or(())?;
@@ -153,11 +158,33 @@ fn decode_bmp(input: &[u8]) -> Result<BmpResult, ()> {
         return Err(());
     }
 
-    let has_alpha = header_size >= V4_HEADER_SIZE
-        && input.len() >= FILE_HEADER_SIZE + V4_HEADER_SIZE
-        && read_u32(input, FILE_HEADER_SIZE + 52)? != 0;
+    let masks = if compression == 3 {
+        read_bitfield_masks(input, header_size)?
+    } else {
+        None
+    };
+    if let Some((red, green, blue, alpha)) = masks {
+        if bit_count != 32 || red != 0x00ff0000 || green != 0x0000ff00 || blue != 0x000000ff {
+            return Err(());
+        }
+        if alpha != 0 && alpha != 0xff000000 {
+            return Err(());
+        }
+    }
 
-    let mut rgba = vec![0; width * height * 4];
+    let has_alpha = masks
+        .map(|(_, _, _, alpha)| alpha == 0xff000000)
+        .unwrap_or_else(|| {
+            header_size >= V4_HEADER_SIZE
+                && input.len() >= FILE_HEADER_SIZE + V4_HEADER_SIZE
+                && read_u32(input, FILE_HEADER_SIZE + 52).unwrap_or(0) != 0
+        });
+
+    let rgba_len = width
+        .checked_mul(height)
+        .and_then(|px| px.checked_mul(4))
+        .ok_or(())?;
+    let mut rgba = vec![0; rgba_len];
     for row in 0..height {
         let src_row = if bottom_up { height - 1 - row } else { row };
         let src_base = pixel_offset + src_row * row_stride;
@@ -182,6 +209,32 @@ fn decode_bmp(input: &[u8]) -> Result<BmpResult, ()> {
         width: width as u32,
         height: height as u32,
     })
+}
+
+fn read_bitfield_masks(
+    input: &[u8],
+    header_size: usize,
+) -> Result<Option<(u32, u32, u32, u32)>, ()> {
+    if header_size >= V4_HEADER_SIZE {
+        return Ok(Some((
+            read_u32(input, FILE_HEADER_SIZE + 40)?,
+            read_u32(input, FILE_HEADER_SIZE + 44)?,
+            read_u32(input, FILE_HEADER_SIZE + 48)?,
+            read_u32(input, FILE_HEADER_SIZE + 52)?,
+        )));
+    }
+
+    if header_size == 40 {
+        let mask_offset = FILE_HEADER_SIZE + header_size;
+        return Ok(Some((
+            read_u32(input, mask_offset)?,
+            read_u32(input, mask_offset + 4)?,
+            read_u32(input, mask_offset + 8)?,
+            0,
+        )));
+    }
+
+    Ok(None)
 }
 
 fn encode_bmp(rgba: &[u8], width: u32, height: u32) -> Result<Vec<u8>, ()> {

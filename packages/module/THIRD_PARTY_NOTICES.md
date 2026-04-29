@@ -133,7 +133,39 @@ POSSIBILITY OF SUCH DAMAGE.
 The native PNG WebAssembly codec included in this package is built with the
 Rust `png` crate 0.18.1.
 
-The `png` crate is dual-licensed under MIT OR Apache-2.0.
+The PNG WASM also statically links the Rust crates used by `png`:
+
+| Component | Version | License |
+|-----------|---------|---------|
+| png | 0.18.1 | MIT OR Apache-2.0 |
+| bitflags | 2.11.1 | MIT OR Apache-2.0 |
+| crc32fast | 1.5.0 | MIT OR Apache-2.0 |
+| fdeflate | 0.3.7 | MIT OR Apache-2.0 |
+| flate2 | 1.1.9 | MIT OR Apache-2.0 |
+| miniz_oxide | 0.8.9 | MIT OR Zlib OR Apache-2.0 |
+| adler2 | 2.0.1 | 0BSD OR MIT OR Apache-2.0 |
+| cfg-if | 1.0.4 | MIT OR Apache-2.0 |
+| simd-adler32 | 0.3.9 | MIT |
+
+The native AVIF WASM statically links Rust crates listed in
+`native/avif/Cargo.lock`. Their license metadata was reviewed with
+`cargo metadata --locked`; the linked set is composed of permissive MIT,
+Apache-2.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, Unlicense, NCSA, Unicode-3.0,
+LLVM-exception, LGPL-2.1-or-later, and MPL-2.0 licensed crates. The MPL-2.0
+component is `avif-parse` 2.1.0; its corresponding source is available from
+the crates.io package for that exact version.
+
+### Common Rust License Texts
+
+Many Rust dependencies above are available under MIT OR Apache-2.0. The MIT
+license text is included in this package's `LICENSE` file. The Apache License
+2.0 text is available at https://www.apache.org/licenses/LICENSE-2.0.
+
+The Mozilla Public License 2.0 text is available at
+https://www.mozilla.org/MPL/2.0/.
+
+The Unicode License v3 text is available at
+https://www.unicode.org/license.txt.
 
 ## libwebp
 

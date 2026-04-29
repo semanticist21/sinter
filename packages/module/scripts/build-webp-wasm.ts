@@ -11,6 +11,7 @@ const LIBWEBP_URL = `https://github.com/webmproject/libwebp/archive/refs/tags/v$
 const LIBWEBP_SHA256 = "93a852c2b3efafee3723efd4636de855b46f9fe1efddd607e1f42f60fc8f2136";
 const LIBWEBP_ARCHIVE = join(CACHE_ROOT, `libwebp-${LIBWEBP_VERSION}.tar.gz`);
 const LIBWEBP_SOURCE_DIR = join(CACHE_ROOT, `libwebp-${LIBWEBP_VERSION}`);
+const LIBWEBP_SOURCE_MARKER = join(LIBWEBP_SOURCE_DIR, ".sinter-source.sha256");
 const BUILD_DIR = join(MODULE_ROOT, "native", "build", "webp");
 const OBJECT_DIR = join(BUILD_DIR, "objects");
 const WASM_OUT = join(BUILD_DIR, "webp.wasm");
@@ -49,10 +50,6 @@ async function findZig(): Promise<string> {
 }
 
 async function ensureLibwebpSource(): Promise<void> {
-  if (await exists(join(LIBWEBP_SOURCE_DIR, "src", "webp", "encode.h"))) {
-    return;
-  }
-
   await mkdir(CACHE_ROOT, { recursive: true });
   if (!(await archiveMatches())) {
     await downloadFile(LIBWEBP_URL, LIBWEBP_ARCHIVE);
@@ -61,10 +58,18 @@ async function ensureLibwebpSource(): Promise<void> {
     throw new Error(`libwebp archive checksum did not match ${LIBWEBP_SHA256}.`);
   }
 
+  if (
+    (await exists(join(LIBWEBP_SOURCE_DIR, "src", "webp", "encode.h"))) &&
+    (await markerMatches())
+  ) {
+    return;
+  }
+
   const tmp = join(CACHE_ROOT, `libwebp-${LIBWEBP_VERSION}-tmp`);
   await rm(tmp, { recursive: true, force: true });
   await mkdir(tmp, { recursive: true });
   await run("tar", ["-xzf", LIBWEBP_ARCHIVE, "-C", tmp, "--strip-components", "1"]);
+  await Bun.write(join(tmp, ".sinter-source.sha256"), `${LIBWEBP_SHA256}\n`);
   await rm(LIBWEBP_SOURCE_DIR, { recursive: true, force: true });
   await run("mv", [tmp, LIBWEBP_SOURCE_DIR]);
 }
@@ -157,6 +162,14 @@ async function archiveMatches(): Promise<boolean> {
   }
   const bytes = await readFile(LIBWEBP_ARCHIVE);
   return createHash("sha256").update(bytes).digest("hex") === LIBWEBP_SHA256;
+}
+
+async function markerMatches(): Promise<boolean> {
+  try {
+    return (await readFile(LIBWEBP_SOURCE_MARKER, "utf8")).trim() === LIBWEBP_SHA256;
+  } catch {
+    return false;
+  }
 }
 
 async function downloadFile(url: string, to: string): Promise<void> {
