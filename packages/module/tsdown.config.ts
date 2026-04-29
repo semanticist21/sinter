@@ -7,13 +7,13 @@ export default defineConfig([
     format: ["esm"],
     clean: true,
     outDir: "dist",
-    external: [/^@jsquash\//, "upng-js"],
+    external: ["upng-js"],
   },
   {
     entry: ["src/worker.ts"],
     dts: false,
     format: ["esm"],
     outDir: "dist",
-    external: [/^@jsquash\//, "upng-js"],
+    external: ["upng-js"],
   },
 ]);

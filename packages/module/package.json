@@ -38,8 +38,8 @@
   "sideEffects": false,
   "scripts": {
     "build": "bun run build:native && tsdown && bun run build:native:copy-dist",
-    "build:native": "bun scripts/build-jpeg-wasm.ts && bun scripts/build-avif-wasm.ts",
-    "build:native:copy-dist": "bun scripts/build-jpeg-wasm.ts --copy-dist && bun scripts/build-avif-wasm.ts --copy-dist",
+    "build:native": "bun scripts/build-jpeg-wasm.ts && bun scripts/build-avif-wasm.ts && bun scripts/build-bmp-wasm.ts && bun scripts/build-png-wasm.ts && bun scripts/build-webp-wasm.ts",
+    "build:native:copy-dist": "bun scripts/build-jpeg-wasm.ts --copy-dist && bun scripts/build-avif-wasm.ts --copy-dist && bun scripts/build-bmp-wasm.ts --copy-dist && bun scripts/build-png-wasm.ts --copy-dist && bun scripts/build-webp-wasm.ts --copy-dist",
     "check": "tsgo -p tsconfig.json --noEmit",
     "test": "bun run build:native && bun test"
   },
@@ -50,8 +50,6 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@jsquash/png": "^3.1.1",
-    "@jsquash/webp": "^1.5.0",
     "upng-js": "^2.1.0"
   }
 }

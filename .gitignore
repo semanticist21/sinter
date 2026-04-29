@@ -7,6 +7,8 @@ build/
 packages/module/native/build/
 packages/module/src/codecs/*.wasm
 packages/module/native/avif/target/
+packages/module/native/bmp/target/
+packages/module/native/png/target/
 packages/module/README.md
 
 # IDEs

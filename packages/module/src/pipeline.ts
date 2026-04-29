@@ -22,11 +22,11 @@ export async function decodeImage(buffer: ArrayBuffer, format: ImageFormat): Pro
         return decode(buffer);
       }
       case "png": {
-        const { default: decode } = await import("@jsquash/png/decode.js");
+        const { decodePng: decode } = await import("./codecs/png.js");
         return decode(buffer);
       }
       case "webp": {
-        const { default: decode } = await import("@jsquash/webp/decode.js");
+        const { decodeWebp: decode } = await import("./codecs/webp.js");
         return decode(buffer);
       }
       case "avif": {
@@ -34,8 +34,7 @@ export async function decodeImage(buffer: ArrayBuffer, format: ImageFormat): Pro
         return decode(buffer);
       }
       case "bmp": {
-        // BMP is handled in pure TypeScript without WASM (uncompressed format)
-        const { decodeBmp } = await import("./bmp.js");
+        const { decodeBmp } = await import("./codecs/bmp.js");
         return decodeBmp(buffer);
       }
     }
@@ -75,16 +74,16 @@ export async function encodeImage(
         });
       }
       case "png": {
-        const { default: encode } = await import("@jsquash/png/encode.js");
+        const { encodePng: encode } = await import("./codecs/png.js");
         // PNG is lossless — no quality parameter
         return encode(imageData);
       }
       case "webp": {
-        const { default: encode } = await import("@jsquash/webp/encode.js");
+        const { encodeWebp: encode } = await import("./codecs/webp.js");
         const webpOpts = codecOpts.webp;
         return encode(imageData, {
           quality,
-          ...(webpOpts?.lossless != null ? { lossless: webpOpts.lossless ? 1 : 0 } : {}),
+          ...webpOpts,
         });
       }
       case "avif": {
@@ -96,7 +95,7 @@ export async function encodeImage(
       }
       case "bmp": {
         // BMP is uncompressed and lossless, so the quality parameter is ignored
-        const { encodeBmp } = await import("./bmp.js");
+        const { encodeBmp } = await import("./codecs/bmp.js");
         return encodeBmp(imageData);
       }
     }
@@ -215,7 +214,7 @@ export async function encodeFitSize(
   // BMP and PNG are lossless, so quality binary search is not meaningful and stays at 100
   let bestQuality = format === "png" || format === "bmp" ? 100 : startQuality;
 
-  // Phase 1: @jsquash encode (single lossless attempt for PNG/BMP)
+  // Phase 1: native encode (single lossless attempt for PNG/BMP)
   let encoded = await encodeImage(current, format, { quality: bestQuality, codecOpts });
   if (encoded.byteLength <= targetBytes) {
     return encoded;
@@ -286,7 +285,7 @@ export async function encodeFitSize(
   }
 
   // Phase 3: dimension reduction — shrink and re-encode
-  // PNG uses UPNG re-encoding with bestCnum, while others use @jsquash
+  // PNG uses UPNG re-encoding with bestCnum, while others use native codecs.
   for (let step = 0; step < MAX_DIMENSION_STEPS; step++) {
     const newW = Math.max(1, Math.round(current.width * DIMENSION_SCALE));
     const newH = Math.max(1, Math.round(current.height * DIMENSION_SCALE));

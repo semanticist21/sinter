@@ -32,8 +32,8 @@ No server round-trips. No backend costs. The user's browser does all the work.
 npm install sinter-js
 ```
 
-> Sinter ships native JPEG and AVIF WASM codecs, and loads the remaining
-> `@jsquash/*` WASM codec paths on demand.
+> Sinter ships its own native WASM codecs for JPEG, PNG, WebP, AVIF, and BMP.
+> Generated WASM artifacts are packaged in `dist` and loaded lazily per format.
 
 ## Quick Start
 
@@ -133,8 +133,8 @@ import { SinterValidationError, SinterCodecError } from "sinter-js";
 1. **Detect** format via magic bytes / ISOBMFF brands (not file extension)
 2. **Decode** with the matching WASM decoder
 3. **Resize** on canvas if `dimensions()` is set
-4. **Encode** to the target format at the determined quality; JPEG and AVIF
-   decode/encode through Sinter-owned native WASM
+4. **Encode** to the target format at the determined quality using Sinter-owned
+   native WASM codecs
 5. **Fit size** — if `size()` is set, lossy formats reduce quality first down to a floor, then shrink dimensions step-by-step until the target is met (best-effort)
 
 Single decode-encode pass. No generation loss from repeated re-encoding.

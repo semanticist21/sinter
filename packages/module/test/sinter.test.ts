@@ -301,6 +301,24 @@ describe("JPEG", () => {
 // ---------------------------------------------------------------------------
 
 describe("PNG", () => {
+  test("native decode returns RGBA ImageData", async () => {
+    const bytes = loadBytes("test.png");
+    const imageData = await decodeImage(bytes.slice().buffer, "png");
+
+    expect(imageData.width).toBeGreaterThan(0);
+    expect(imageData.height).toBeGreaterThan(0);
+    expect(imageData.data.byteLength).toBe(imageData.width * imageData.height * 4);
+  });
+
+  test("native encode returns PNG bytes", async () => {
+    const bytes = loadBytes("test.jpeg");
+    const imageData = await decodeImage(bytes.slice().buffer, "jpeg");
+    const encoded = await encodeImage(imageData, "png", { quality: 100, codecOpts: {} });
+
+    expect(detectFormat(new Uint8Array(encoded))).toBe("png");
+    expect(encoded.byteLength).toBeGreaterThan(0);
+  });
+
   test("keepFormat — result is not larger than original", async () => {
     const file = loadAsset("test.png");
 
@@ -346,6 +364,24 @@ describe("PNG", () => {
 // ---------------------------------------------------------------------------
 
 describe("WebP", () => {
+  test("native decode returns RGBA ImageData", async () => {
+    const bytes = loadBytes("test.webp");
+    const imageData = await decodeImage(bytes.slice().buffer, "webp");
+
+    expect(imageData.width).toBeGreaterThan(0);
+    expect(imageData.height).toBeGreaterThan(0);
+    expect(imageData.data.byteLength).toBe(imageData.width * imageData.height * 4);
+  });
+
+  test("native encode returns WebP bytes", async () => {
+    const bytes = loadBytes("test.jpeg");
+    const imageData = await decodeImage(bytes.slice().buffer, "jpeg");
+    const encoded = await encodeImage(imageData, "webp", { quality: 80, codecOpts: {} });
+
+    expect(detectFormat(new Uint8Array(encoded))).toBe("webp");
+    expect(encoded.byteLength).toBeGreaterThan(0);
+  });
+
   test("keepFormat — quality reduces file size", async () => {
     const file = loadAsset("test.webp");
 
@@ -590,6 +626,24 @@ describe("combined constraints", () => {
 // ---------------------------------------------------------------------------
 
 describe("BMP", () => {
+  test("native decode returns RGBA ImageData", async () => {
+    const bytes = loadBytes("test.bmp");
+    const imageData = await decodeImage(bytes.slice().buffer, "bmp");
+
+    expect(imageData.width).toBeGreaterThan(0);
+    expect(imageData.height).toBeGreaterThan(0);
+    expect(imageData.data.byteLength).toBe(imageData.width * imageData.height * 4);
+  });
+
+  test("native encode returns BMP bytes", async () => {
+    const bytes = loadBytes("test.jpeg");
+    const imageData = await decodeImage(bytes.slice().buffer, "jpeg");
+    const encoded = await encodeImage(imageData, "bmp", { quality: 100, codecOpts: {} });
+
+    expect(detectFormat(new Uint8Array(encoded))).toBe("bmp");
+    expect(encoded.byteLength).toBeGreaterThan(0);
+  });
+
   test("keepFormat — BMP 출력 타입 확인", async () => {
     const file = loadAsset("test.bmp");
 
