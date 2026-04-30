@@ -36,8 +36,6 @@ npm install sinter-js
 > Sinter ships its own native WASM codecs for JPEG, PNG, WebP, AVIF, and BMP.
 > Generated WASM artifacts are packaged in `dist` and loaded lazily per format.
 
-No `@jsquash/*` packages are required at runtime.
-
 ## Quick Start
 
 ```ts
