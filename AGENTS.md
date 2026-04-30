@@ -9,6 +9,16 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 - `packages/module`: published package `sinter-js`
 - `packages/demo`: local demo app used to validate library behavior before release
 
+## Git Workflow
+
+- Default to working directly on `main` in this repository.
+- Do not create, switch to, or push a new branch unless the user explicitly asks
+  for that branch.
+- If a branch is unavoidable for a task, explain why and get confirmation before
+  creating or pushing it.
+- When pushing, verify the active GitHub account first and keep author/committer
+  aligned with the account the user requested.
+
 ## Common Commands
 
 ```bash
