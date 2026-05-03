@@ -10,7 +10,7 @@
     "check": "biome check . && bun --filter '*' check",
     "demo": "bun --filter sinter-js build && bun --filter @sinter/demo dev",
     "dev": "bun --filter @sinter/demo dev",
-    "publish:module": "bun --filter sinter-js build && cp README.md packages/module/README.md && cd packages/module && bun publish",
+    "publish:module": "npm whoami && bun --filter sinter-js build && cp README.md packages/module/README.md && cd packages/module && npm publish",
     "fix": "biome check . --write",
     "update": "bun update"
   },
