@@ -6,14 +6,61 @@ import type {
   WorkerResultMessage,
 } from "./types";
 
-// Validate the file passed to run()
 function validateFile(file: File): void {
-  if (!(file instanceof File)) {
-    throw new SinterValidationError("run() expects a File instance.");
+  if (typeof File === "undefined" || !(file instanceof File)) {
+    throw new SinterValidationError("compress() expects a File instance.");
   }
   if (file.size === 0) {
     throw new SinterValidationError("파일이 비어 있습니다.");
   }
+}
+
+function canUseBrowserWorker(): boolean {
+  return typeof globalThis.window !== "undefined" && typeof globalThis.Worker !== "undefined";
+}
+
+function isBunRuntime(): boolean {
+  return "Bun" in globalThis;
+}
+
+function createTimeoutError(timeout: number): SinterCodecError {
+  return new SinterCodecError(`Compression timed out after ${timeout}s.`);
+}
+
+function rejectUnsupportedEnvironment(): never {
+  throw new SinterCodecError(
+    "Sinter compression requires a browser client with Web Worker support. " +
+      "SSR imports are safe, but call compress() only from client-side code."
+  );
+}
+
+function withTimeout<T>(promise: Promise<T>, timeout: number | undefined): Promise<T> {
+  if (timeout == null) {
+    return promise;
+  }
+
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      settled = true;
+      reject(createTimeoutError(timeout));
+    }, timeout * 1000);
+
+    promise.then(
+      value => {
+        if (!settled) {
+          clearTimeout(timer);
+          resolve(value);
+        }
+      },
+      error => {
+        if (!settled) {
+          clearTimeout(timer);
+          reject(error);
+        }
+      }
+    );
+  });
 }
 
 export class SinterBuilder {
@@ -80,6 +127,12 @@ export class SinterBuilder {
   async compress(file: File): Promise<Blob> {
     validateFile(file);
     const { formatPolicy, codecOpts, maxQuality, dims, sizeLimit, timeout } = this._config;
+    const useWorker = canUseBrowserWorker();
+    const useDirectPipeline = isBunRuntime();
+
+    if (!useWorker && !useDirectPipeline) {
+      rejectUnsupportedEnvironment();
+    }
 
     const buffer = await file.arrayBuffer();
 
@@ -92,11 +145,12 @@ export class SinterBuilder {
       sizeLimit,
     };
 
-    // Use Web Worker in browser, direct execution in non-browser environments (bun test)
-    const isBrowser = typeof globalThis.window !== "undefined";
-    const response = isBrowser
+    const response = useWorker
       ? await this.runInWorker(request, timeout)
-      : await import("./pipeline").then(m => m.executePipeline(request));
+      : await withTimeout(
+          import("./pipeline").then(m => m.executePipeline(request)),
+          timeout
+        );
 
     return new Blob([response.buffer], { type: response.mime });
   }
@@ -119,7 +173,7 @@ export class SinterBuilder {
       if (timeout != null) {
         timer = setTimeout(() => {
           cleanup();
-          reject(new SinterCodecError(`Compression timed out after ${timeout}s.`));
+          reject(createTimeoutError(timeout));
         }, timeout * 1000);
       }
 

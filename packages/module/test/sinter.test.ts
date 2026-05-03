@@ -166,6 +166,14 @@ describe("sinter() validation", () => {
     await expect(sinter().keepFormat().compress(new File([], "empty.jpg"))).rejects.toThrow("비어");
   });
 
+  test("timeout applies in the direct Bun execution path", async () => {
+    const file = loadAsset("test.jpeg");
+
+    await expect(sinter().keepFormat().timeout(0.000001).compress(file)).rejects.toThrow(
+      "Compression timed out"
+    );
+  });
+
   test("returns format stage", () => {
     const stage = sinter();
     expect(stage).toBeDefined();

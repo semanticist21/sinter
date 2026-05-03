@@ -23,9 +23,9 @@ No server round-trips. No backend costs. The user's browser does all the work.
 - JPEG, PNG, WebP, AVIF, BMP
 - Sinter-owned native WASM codecs for every supported format
 - Resize, quality control, file size targeting
-- Runs in a **Web Worker** — UI never blocks
+- Runs in a **Web Worker** so the UI stays responsive
 - Fluent, type-safe API with compile-time guardrails
-- Zero server load
+- Safe to import in SSR-capable apps; compression runs on the client
 
 ## Install
 
@@ -35,6 +35,7 @@ npm install sinter-js
 
 > Sinter ships its own native WASM codecs for JPEG, PNG, WebP, AVIF, and BMP.
 > Generated WASM artifacts are packaged in `dist` and loaded lazily per format.
+> No `@jsquash/*` runtime packages are required.
 
 ## Quick Start
 
@@ -62,35 +63,41 @@ const blob2 = await pipeline.compress(file2);
 
 ## API
 
-Everything starts with `sinter()`, then flows through stages:
+Everything starts with `sinter()`, followed by one required format stage and any
+optional compression settings:
 
-```
-sinter()
-  .keepFormat()                              // keep the original format
-  .toFormat("webp")                          // convert to a specific format
-  .allowFormats(["avif", "webp"], "webp")    // keep if allowed, otherwise fallback
-
-  .codecOptions({ webp: { lossless: false } })  // format-specific encoder options
-
-  .maxQuality(80)                            // quality ceiling (1-100)
-  .dimensions({ width: 1200 })               // resize constraints
-  .size(1, "MB")                             // file size target
-  .timeout(30)                               // timeout in seconds
-
-  .compress(file: File)                      // execute, returns Promise<Blob>
+```ts
+await sinter()
+  .toFormat("webp")
+  .codecOptions({ webp: { lossless: false } })
+  .maxQuality(80)
+  .dimensions({ width: 1200 })
+  .size(1, "MB")
+  .timeout(30)
+  .compress(file);
 ```
 
-Only the format stage (`keepFormat`, `toFormat`, or `allowFormats`) is required. Everything after it — `codecOptions`, `maxQuality`, `dimensions`, `size`, `timeout` — is optional. Chain what you need, skip what you don't.
+Only the format stage (`keepFormat`, `toFormat`, or `allowFormats`) is required.
+Everything after it is optional. Each stage returns a narrowed type, so calling
+the same method twice is a compile-time error.
 
-Each stage returns a narrowed type. **Calling the same method twice is a compile-time error** — no silent overwrites.
-
-### Format Stage
+### Format
 
 | Method | Description |
 |--------|-------------|
 | `keepFormat()` | Output matches the input format |
 | `toFormat(format)` | Always encode to the given format |
 | `allowFormats(allowed, fallback)` | Keep input format if allowed, otherwise use fallback |
+
+### Compression
+
+| Method | Description |
+|--------|-------------|
+| `codecOptions(options)` | Set format-specific encoder options |
+| `maxQuality(n)` | Set quality ceiling from `1` to `100` |
+| `dimensions({ width?, height? })` | Resize within bounds while preserving aspect ratio |
+| `size(value, unit)` | Best-effort output size target in `"KB"` or `"MB"` |
+| `timeout(seconds)` | Reject if compression exceeds the time limit |
 
 ### Codec Options
 
@@ -109,6 +116,17 @@ sinter()
 | `png` | *(none — lossless)* |
 | `bmp` | *(none — uncompressed lossless)* |
 
+### Errors
+
+```ts
+import { SinterValidationError, SinterCodecError } from "sinter-js";
+```
+
+| Error | When |
+|-------|------|
+| `SinterValidationError` | Invalid input (bad quality range, empty file, etc.) |
+| `SinterCodecError` | Codec failure, worker failure, timeout, or calling `compress()` outside a supported browser/Bun execution path |
+
 ## Native Codecs
 
 Sinter owns the browser WASM boundary for every supported format. Each codec is
@@ -122,10 +140,9 @@ loaded only when that format is decoded or encoded.
 | AVIF | Rust `ravif` / `rav1d` path | `quality` and `{ speed }` |
 | BMP | Local Rust codec | Uncompressed RGBA/BGRA path |
 
-Generated WASM files are not committed to source. The package build creates
-them and copies them into `dist`:
+Generated WASM files are included in the published package:
 
-```
+```text
 dist/jpeg.wasm
 dist/png.wasm
 dist/webp.wasm
@@ -133,47 +150,31 @@ dist/avif.wasm
 dist/bmp.wasm
 ```
 
-### Compression
-
-| Method | Description |
-|--------|-------------|
-| `maxQuality(n)` | Sets quality ceiling (1-100). May be lowered further to meet `size()`. |
-| `size(value, unit)` | Try to fit the output within this size (`"KB"` or `"MB"`). Reduces quality first, then shrinks dimensions if needed. The target is best-effort — a warning is logged if it cannot be met. |
-| `dimensions({ width?, height? })` | Resize within bounds, preserving aspect ratio. |
-| `timeout(seconds)` | Rejects with error if compression exceeds the time limit. No timeout by default. |
-
-### Errors
-
-```ts
-import { SinterValidationError, SinterCodecError } from "sinter-js";
-```
-
-| Error | When |
-|-------|------|
-| `SinterValidationError` | Invalid input (bad quality range, empty file, etc.) |
-| `SinterCodecError` | WASM codec decode/encode failure |
-
 ## How It Works
 
-1. **Detect** format via magic bytes / ISOBMFF brands (not file extension)
-2. **Decode** with the matching WASM decoder
-3. **Resize** on canvas if `dimensions()` is set
-4. **Encode** to the target format at the determined quality using Sinter-owned
-   native WASM codecs
-5. **Fit size** — if `size()` is set, lossy formats reduce quality first down to a floor, then shrink dimensions step-by-step until the target is met (best-effort)
+1. Detect the source format from magic bytes, not the file extension.
+2. Resolve the output format from `keepFormat()`, `toFormat()`, or
+   `allowFormats()`.
+3. Decode with the matching WASM decoder.
+4. Resize with `OffscreenCanvas` when `dimensions()` is set.
+5. Encode once at the selected quality, or run best-effort size fitting when
+   `size()` is set.
+6. Return the original bytes when same-format re-encoding would only inflate the
+   file and no resize or size target was requested.
 
-PNG is lossless, so size targeting can additionally use `upng-js` palette
-quantization before dimension reduction.
+For lossy formats, size fitting reduces quality first and then shrinks
+dimensions. PNG uses `upng-js` palette quantization for the second phase before
+dimension reduction. BMP is uncompressed, so quality settings do not affect it.
 
-Single decode-encode pass. No generation loss from repeated re-encoding.
+## Browser Only And SSR
 
-**Inflation guard** — if the output format matches the input, no resize was applied, and no size target was set, Sinter returns the original bytes whenever re-encoding would produce a larger file.
+Sinter does not touch browser globals at module import time, so importing it in
+SSR-capable frameworks is safe.
 
-All heavy lifting runs in a **Web Worker**, so the main thread stays responsive.
-
-## Browser Only
-
-Sinter uses `File`, `Blob`, `OffscreenCanvas`, Web Workers, and WASM — it runs in modern browsers, not Node.js.
+Actual compression is browser-only. It uses `File`, `Blob`, `OffscreenCanvas`,
+Web Workers, and WASM. Call `compress(file)` only from client-side code. If
+`compress()` is called in a non-browser runtime without Bun's test/runtime path,
+it rejects with `SinterCodecError`.
 
 ## Building From Source
 
@@ -206,8 +207,8 @@ bun run check
 
 The native build downloads pinned codec sources into `~/.cache/sinter`, verifies
 the pinned source where applicable, and keeps generated artifacts out of tracked
-source. `bun --filter sinter-js test` builds `dist` first and includes a smoke
-test that imports `dist/index.mjs`.
+source. `bun --filter sinter-js test` rebuilds `dist` and includes smoke tests
+that import the built package.
 
 ## License
 

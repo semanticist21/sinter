@@ -5,15 +5,27 @@ export default defineConfig([
     entry: ["src/index.ts"],
     dts: true,
     format: ["esm"],
+    platform: "browser",
+    fixedExtension: true,
     clean: true,
     outDir: "dist",
-    external: ["upng-js"],
+    deps: {
+      neverBundle: ["upng-js"],
+    },
   },
   {
     entry: ["src/worker.ts"],
     dts: false,
     format: ["esm"],
+    platform: "browser",
+    fixedExtension: true,
     outDir: "dist",
-    external: ["upng-js"],
+    deps: {
+      alwaysBundle: ["upng-js"],
+      onlyBundle: ["upng-js", "pako"],
+    },
+    outputOptions: {
+      codeSplitting: false,
+    },
   },
 ]);

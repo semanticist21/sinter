@@ -1,12 +1,12 @@
 {
   "name": "sinter-js",
-  "version": "0.2.2",
+  "version": "1.0.1",
   "description": "High-performance browser image compression library with fluent API — supports JPEG, PNG, WebP, AVIF, and BMP via WASM codecs",
   "license": "MIT",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "https://github.com/semanticist21/sinter.git",
+    "url": "git+https://github.com/semanticist21/sinter.git",
     "directory": "packages/module"
   },
   "keywords": [
@@ -31,7 +31,6 @@
   "types": "./dist/index.d.mts",
   "exports": {
     ".": {
-      "source": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
     }
