@@ -42,7 +42,7 @@
     },
     "packages/module": {
       "name": "sinter-js",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "dependencies": {
         "upng-js": "^2.1.0",
       },

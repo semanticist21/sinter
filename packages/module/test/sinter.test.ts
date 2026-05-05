@@ -187,6 +187,8 @@ describe("builder validation", () => {
   test("maxQuality rejects out of range", () => {
     expect(() => sinter().keepFormat().maxQuality(0)).toThrow();
     expect(() => sinter().keepFormat().maxQuality(101)).toThrow();
+    expect(() => sinter().keepFormat().maxQuality(Number.NaN)).toThrow();
+    expect(() => sinter().keepFormat().maxQuality(Number.POSITIVE_INFINITY)).toThrow();
   });
 
   test("maxQuality accepts valid values", () => {
@@ -197,12 +199,21 @@ describe("builder validation", () => {
   test("dimensions rejects invalid values", () => {
     expect(() => sinter().keepFormat().dimensions({ width: -1 })).toThrow();
     expect(() => sinter().keepFormat().dimensions({ width: 0 })).toThrow();
+    expect(() => sinter().keepFormat().dimensions({ width: Number.NaN })).toThrow();
+    expect(() => sinter().keepFormat().dimensions({ height: Number.POSITIVE_INFINITY })).toThrow();
     expect(() => sinter().keepFormat().dimensions({})).toThrow();
   });
 
   test("size rejects non-positive", () => {
     expect(() => sinter().keepFormat().size(0, "KB")).toThrow();
     expect(() => sinter().keepFormat().size(-1, "MB")).toThrow();
+    expect(() => sinter().keepFormat().size(Number.NaN, "KB")).toThrow();
+    expect(() => sinter().keepFormat().size(Number.POSITIVE_INFINITY, "MB")).toThrow();
+  });
+
+  test("timeout rejects non-finite values", () => {
+    expect(() => sinter().keepFormat().timeout(Number.NaN)).toThrow();
+    expect(() => sinter().keepFormat().timeout(Number.POSITIVE_INFINITY)).toThrow();
   });
 });
 

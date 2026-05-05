@@ -78,7 +78,7 @@ export class SinterBuilder {
    * The final quality may still be reduced to satisfy `size()`.
    */
   maxQuality(value: number): Omit<this, "maxQuality"> {
-    if (value < 1 || value > 100) {
+    if (!Number.isFinite(value) || value < 1 || value > 100) {
       throw new SinterValidationError("maxQuality must be between 1 and 100.");
     }
     this._config.maxQuality = value;
@@ -92,10 +92,10 @@ export class SinterBuilder {
    * Tries to satisfy the given constraints without distorting the image.
    */
   dimensions(value: { width?: number; height?: number }): Omit<this, "dimensions"> {
-    if (value.width != null && value.width <= 0) {
+    if (value.width != null && (!Number.isFinite(value.width) || value.width <= 0)) {
       throw new SinterValidationError("dimensions width must be a positive number.");
     }
-    if (value.height != null && value.height <= 0) {
+    if (value.height != null && (!Number.isFinite(value.height) || value.height <= 0)) {
       throw new SinterValidationError("dimensions height must be a positive number.");
     }
     if (value.width == null && value.height == null) {
@@ -107,7 +107,7 @@ export class SinterBuilder {
 
   /** Sets the maximum size allowed for the final output blob. */
   size(value: number, unit: "MB" | "KB"): Omit<this, "size"> {
-    if (value <= 0) {
+    if (!Number.isFinite(value) || value <= 0) {
       throw new SinterValidationError("size value must be positive.");
     }
     this._config.sizeLimit = unit === "MB" ? value * 1024 * 1024 : value * 1024;
@@ -116,7 +116,7 @@ export class SinterBuilder {
 
   /** Sets a timeout in seconds. Rejects with an error if compression exceeds the limit. */
   timeout(seconds: number): Omit<this, "timeout"> {
-    if (seconds <= 0) {
+    if (!Number.isFinite(seconds) || seconds <= 0) {
       throw new SinterValidationError("timeout must be a positive number.");
     }
     this._config.timeout = seconds;

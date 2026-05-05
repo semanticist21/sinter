@@ -5,8 +5,7 @@
 <h1 align="center">Sinter</h1>
 
 <p align="center">
-  Let the user compress their own images.<br/>
-  Release your server from the burden.
+  Browser image compression for JPEG, PNG, WebP, AVIF, and BMP.
 </p>
 
 <p align="center">
@@ -17,14 +16,14 @@
 
 ---
 
-**Sinter** is a browser-side image compression library powered by WASM codecs.
-No server round-trips. No backend costs. The user's browser does all the work.
+**Sinter** is a browser-side image compression library for apps that need image
+files smaller before upload, preview, or download. It takes a browser `File`,
+applies the options you choose, and returns a compressed image `Blob`.
 
 - JPEG, PNG, WebP, AVIF, BMP
-- Sinter-owned native WASM codecs for every supported format
-- Resize, quality control, file size targeting
-- Runs in a **Web Worker** so the UI stays responsive
-- Fluent, type-safe API with compile-time guardrails
+- Keep the input format or convert to another supported format
+- Resize, quality control, and best-effort file size targeting
+- Runs compression off the main UI flow in supported browsers
 - Safe to import in SSR-capable apps; compression runs on the client
 
 ## Install
@@ -33,13 +32,9 @@ No server round-trips. No backend costs. The user's browser does all the work.
 npm install sinter-js
 ```
 
-> Sinter ships its own native WASM codecs for JPEG, PNG, WebP, AVIF, and BMP.
-> Generated WASM artifacts are packaged in `dist` and loaded lazily per format.
-> No `@jsquash/*` runtime packages are required.
+## Basic Usage
 
-## Quick Start
-
-```ts
+```js
 import { sinter } from "sinter-js";
 
 const blob = await sinter()
@@ -49,26 +44,26 @@ const blob = await sinter()
   .compress(file);
 ```
 
-Pipeline settings can be stored and reused across multiple files:
+Pipeline settings can be reused:
 
-```ts
+```js
 const pipeline = sinter()
   .toFormat("webp")
   .maxQuality(80)
   .dimensions({ width: 1200 });
 
-const blob1 = await pipeline.compress(file1);
-const blob2 = await pipeline.compress(file2);
+const firstBlob = await pipeline.compress(firstFile);
+const secondBlob = await pipeline.compress(secondFile);
 ```
 
 ## API
 
-Everything starts with `sinter()`, followed by one required format stage and any
-optional compression settings:
+Start with `sinter()`, choose an output format policy, then add any compression
+options before calling `compress(file)`.
 
-```ts
+```js
 await sinter()
-  .toFormat("webp")
+  .allowFormats(["avif", "webp"], "webp")
   .codecOptions({ webp: { lossless: false } })
   .maxQuality(80)
   .dimensions({ width: 1200 })
@@ -77,31 +72,34 @@ await sinter()
   .compress(file);
 ```
 
-Only the format stage (`keepFormat`, `toFormat`, or `allowFormats`) is required.
-Everything after it is optional. Each stage returns a narrowed type, so calling
-the same method twice is a compile-time error.
-
 ### Format
 
 | Method | Description |
 |--------|-------------|
-| `keepFormat()` | Output matches the input format |
-| `toFormat(format)` | Always encode to the given format |
-| `allowFormats(allowed, fallback)` | Keep input format if allowed, otherwise use fallback |
+| `keepFormat()` | Use the input format for the output |
+| `toFormat(format)` | Encode to one output format |
+| `allowFormats(allowed, fallback)` | Keep the input format when it is allowed; otherwise use `fallback` |
+
+Supported formats:
+
+```js
+"jpeg" | "png" | "webp" | "avif" | "bmp"
+```
 
 ### Compression
 
 | Method | Description |
 |--------|-------------|
-| `codecOptions(options)` | Set format-specific encoder options |
-| `maxQuality(n)` | Set quality ceiling from `1` to `100` |
-| `dimensions({ width?, height? })` | Resize within bounds while preserving aspect ratio |
-| `size(value, unit)` | Best-effort output size target in `"KB"` or `"MB"` |
-| `timeout(seconds)` | Reject if compression exceeds the time limit |
+| `codecOptions(options)` | Set encoder options for formats this pipeline can produce |
+| `maxQuality(n)` | Set the maximum quality from `1` to `100` |
+| `dimensions({ width?, height? })` | Resize within the given bounds while preserving aspect ratio |
+| `size(value, unit)` | Try to fit the output under a target size; `unit` must be `"KB"` or `"MB"` |
+| `timeout(seconds)` | Reject if compression takes longer than the limit |
+| `compress(file)` | Run the pipeline and return a `Blob` |
 
 ### Codec Options
 
-```ts
+```js
 sinter()
   .toFormat("avif")
   .codecOptions({ avif: { speed: 4 } })
@@ -113,104 +111,38 @@ sinter()
 | `jpeg` | `{ progressive?: boolean }` |
 | `webp` | `{ lossless?: boolean }` |
 | `avif` | `{ speed?: number }` |
-| `png` | *(none — lossless)* |
-| `bmp` | *(none — uncompressed lossless)* |
+| `png` | None |
+| `bmp` | None |
 
-### Errors
+## Behavior
 
-```ts
+- Input format is detected from file bytes, not the file extension.
+- `size()` is best effort. Some images may not fit the requested target.
+- For lossy output formats, size fitting lowers quality before reducing dimensions.
+- `maxQuality()` does not change BMP output quality.
+- If same-format compression would make the file larger, Sinter returns the
+  original bytes when no resize or size target was requested.
+
+## Browser And SSR
+
+Sinter can be imported in SSR-capable apps because it does not access browser
+globals at import time.
+
+Call `compress(file)` from browser client code. Other runtimes are not part of
+the public API and may reject with `SinterCodecError`.
+
+## Errors
+
+```js
 import { SinterValidationError, SinterCodecError } from "sinter-js";
 ```
 
 | Error | When |
 |-------|------|
-| `SinterValidationError` | Invalid input (bad quality range, empty file, etc.) |
-| `SinterCodecError` | Codec failure, worker failure, timeout, or calling `compress()` outside a supported browser/Bun execution path |
-
-## Native Codecs
-
-Sinter owns the browser WASM boundary for every supported format. Each codec is
-loaded only when that format is decoded or encoded.
-
-| Format | Native backend | Notes |
-|--------|----------------|-------|
-| JPEG | MozJPEG built with Zig | `quality` and `{ progressive }`; alpha is dropped on encode and filled as `255` on decode |
-| PNG | Rust `png` crate | Lossless RGBA encode/decode |
-| WebP | libwebp built with Zig | `quality` and `{ lossless }` |
-| AVIF | Rust `ravif` / `rav1d` path | `quality` and `{ speed }` |
-| BMP | Local Rust codec | Uncompressed RGBA/BGRA path |
-
-Generated WASM files are included in the published package:
-
-```text
-dist/jpeg.wasm
-dist/png.wasm
-dist/webp.wasm
-dist/avif.wasm
-dist/bmp.wasm
-```
-
-## How It Works
-
-1. Detect the source format from magic bytes, not the file extension.
-2. Resolve the output format from `keepFormat()`, `toFormat()`, or
-   `allowFormats()`.
-3. Decode with the matching WASM decoder.
-4. Resize with `OffscreenCanvas` when `dimensions()` is set.
-5. Encode once at the selected quality, or run best-effort size fitting when
-   `size()` is set.
-6. Return the original bytes when same-format re-encoding would only inflate the
-   file and no resize or size target was requested.
-
-For lossy formats, size fitting reduces quality first and then shrinks
-dimensions. PNG uses `upng-js` palette quantization for the second phase before
-dimension reduction. BMP is uncompressed, so quality settings do not affect it.
-
-## Browser Only And SSR
-
-Sinter does not touch browser globals at module import time, so importing it in
-SSR-capable frameworks is safe.
-
-Actual compression is browser-only. It uses `File`, `Blob`, `OffscreenCanvas`,
-Web Workers, and WASM. Call `compress(file)` only from client-side code. If
-`compress()` is called in a non-browser runtime without Bun's test/runtime path,
-it rejects with `SinterCodecError`.
-
-## Building From Source
-
-The published package already includes generated WASM in `dist`. You only need
-the native toolchain when building Sinter itself.
-
-Prerequisites:
-
-- Bun
-- Zig `0.16.0`
-- Rust with `wasm32-wasip1`
-- CMake
-- `git`, `curl`, and `tar`
-
-On macOS with Homebrew:
-
-```bash
-brew install zig cmake
-rustup target add wasm32-wasip1
-```
-
-Build and test:
-
-```bash
-bun install
-bun --filter sinter-js build
-bun --filter sinter-js test
-bun run check
-```
-
-The native build downloads pinned codec sources into `~/.cache/sinter`, verifies
-the pinned source where applicable, and keeps generated artifacts out of tracked
-source. `bun --filter sinter-js test` rebuilds `dist` and includes smoke tests
-that import the built package.
+| `SinterValidationError` | Invalid input, such as an empty file or an out-of-range option |
+| `SinterCodecError` | Compression failed, timed out, or ran outside the public browser API path |
 
 ## License
 
-MIT. Third-party codec notices are included in
+MIT. Third-party notices are included in
 `packages/module/THIRD_PARTY_NOTICES.md`.
